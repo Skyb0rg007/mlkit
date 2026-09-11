@@ -716,12 +716,14 @@ structure LambdaExp : LAMBDA_EXP =
               if !barify_p then PP.LEAF ("Prim.export " ^ strip_ name)
               else PP.LEAF ("_export " ^ name)
       | RESET_REGIONSprim {instance} =>
-          if !Flags.print_types then
+          if !barify_p then PP.LEAF "(fn x => (x; ()))"
+          else if !Flags.print_types then
               PP.NODE{start="resetRegions(", finish=")",indent=2,
                   children=[layoutType instance],childsep=PP.NOSEP}
           else PP.LEAF("resetRegions")
       | FORCE_RESET_REGIONSprim {instance} =>
-          if !Flags.print_types then
+          if !barify_p then PP.LEAF "(fn x => (x; ()))"
+          else if !Flags.print_types then
               PP.NODE{start="forceResetting(", finish=")",indent=2,
                   children=[layoutType instance],childsep=PP.NOSEP}
           else PP.LEAF("forceResetting")
@@ -1305,6 +1307,8 @@ structure LambdaExp : LAMBDA_EXP =
            if !barify_p then
              case (prim,lambs) of
                  (DROPprim, [lamb]) => layoutLambdaExp(lamb,context)
+               | (RESET_REGIONSprim _, [lamb]) => layout_unit_effect lamb
+               | (FORCE_RESET_REGIONSprim _, [lamb]) => layout_unit_effect lamb
                | (DEEXCONprim excon, [lamb]) =>
                  PP.NODE{start="(case ",
                          childsep=PP.RIGHT " of ",
@@ -1384,6 +1388,12 @@ structure LambdaExp : LAMBDA_EXP =
                                                 layoutTypes il]}
 
     and maybepar context t = parenthesise (context > 13) t
+
+    (* region resetting has no counterpart in Standard ML; evaluate the
+     * argument for its effect and return unit, which is its type *)
+    and layout_unit_effect lamb =
+        PP.NODE{start="(",finish="; ())",indent=1,
+                children=[layoutLambdaExp(lamb,0)],childsep=PP.NOSEP}
 
     and layout_let_fix_and_exception lexp =
           let
