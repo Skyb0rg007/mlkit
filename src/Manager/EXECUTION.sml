@@ -59,6 +59,13 @@ signature EXECUTION =
 
     val link_files_with_runtime_system : string list -> string -> unit
 
+    (* merge_units files : `files' are the files emitted for one compilation
+     * unit, in the order they must be loaded.  A backend that generates source
+     * code may merge them into a single file; a backend that generates object
+     * code does nothing. *)
+
+    val merge_units : string list -> unit
+
     val create_repl_runtime : string list -> string -> string
 
     val mk_sharedlib : string list * lab list * string list * string * string -> unit

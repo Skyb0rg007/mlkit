@@ -380,6 +380,7 @@ structure ExecutionX64 : EXECUTION =
 
       val link_files_with_runtime_system =
           link_files_with_runtime_system0 path_to_runtime
+      fun merge_units (_: string list) = ()   (* object code; nothing to merge *)
 
     end
 

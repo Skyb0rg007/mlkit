@@ -49,6 +49,10 @@ signature MANAGER_OBJECTS =
          * foreign compiler (e.g., gcc). *)
         val mk_exe_all_emitted : modcode * string list * string -> unit
         val size       : modcode -> int (* for debugging *)
+        val merge_units : modcode -> unit
+        (* [merge_units mc] hands the files emitted for mc, in the order they
+         * must be loaded, to the backend, which may merge them into a single
+         * file. *)
         val target_files : modcode -> string list
         (* [target_files mc] returns the paths to the emitted target_files
          * for mc; dies if not all files are emitted. *)

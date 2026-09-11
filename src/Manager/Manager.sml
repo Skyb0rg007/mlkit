@@ -681,6 +681,12 @@ functor Manager(structure ManagerObjects : MANAGER_OBJECTS
                 val _ = PB.pickleNB smlfile ofile (NB0',NB1')
 
                 val modc = ModCode.emit (abs_mlbfile,modc)
+
+                (* merge the files emitted for this compilation unit into
+                 * one, if the backend does that; doing it here, and not only
+                 * when linking, means it also happens when compiling only *)
+                val () = ModCode.merge_units modc
+
                 val _ = PB.pickleLnkFile smlfile ofile modc
 
                 (* Maybe write smlfile.eb.js to disk with export basis binding

@@ -67,10 +67,16 @@ structure ExecutionBarry : EXECUTION =
       (* A source file is compiled into one unit for the file itself and one
        * for each functor application in it, and emit writes each unit to its
        * own file.  f.sml.unit and f.sml.code3.unit both belong to f.sml. *)
+      fun isCode e = size e > 4 andalso String.isPrefix "code" e
+                     andalso CharVector.all Char.isDigit (String.extract(e,4,NONE))
+
+      fun is_functor_unit (f:string) : bool =
+          case OS.Path.ext (OS.Path.base f) of   (* base drops Compile.unit_ext *)
+              SOME e => isCode e
+            | NONE => false
+
       fun source_of (f:string) : string =
           let val b = OS.Path.base f          (* drop Compile.unit_ext *)
-              fun isCode e = size e > 4 andalso String.isPrefix "code" e
-                             andalso CharVector.all Char.isDigit (String.extract(e,4,NONE))
           in case OS.Path.ext b of
                  SOME e => if isCode e then OS.Path.base b else b
                | NONE => b
@@ -114,6 +120,17 @@ structure ExecutionBarry : EXECUTION =
           in map (fn (c,us) => (c,rev us)) groups
           end
     in
+      (* the units of one compilation unit are named after the source file
+       * itself and after each functor application in it; the Core ML file is
+       * named after the source file *)
+      fun merge_units nil = ()
+        | merge_units (files as f::_) =
+          let val f = case List.find (not o is_functor_unit) files of
+                          SOME f => f
+                        | NONE => f
+          in write_core (core_of f, files)
+          end
+
       fun link_files_with_runtime_system files run =
 	  let val groups = group files
 	      val () = app write_core groups

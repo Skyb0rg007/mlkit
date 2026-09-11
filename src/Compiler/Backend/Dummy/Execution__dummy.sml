@@ -61,6 +61,7 @@ functor ExecutionDummy(ExecutionArgs : EXECUTION_ARGS) : EXECUTION =
     val generate_link_code = NONE
     fun emit _ = ""
     fun link_files_with_runtime_system _ _ _ = ()
+    fun merge_units _ = ()
 
     val pu_linkinfo = Pickle.unit
   end

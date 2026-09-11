@@ -4,7 +4,7 @@ TESTFILES=fib35.sml life.sml testdyn1.sml general.sml string.sml qsort.sml fft.s
 
 MLBTESTFILES=multi.mlb
 
-RESFILES=$(TESTFILES:%.sml=%.res) $(MLBTESTFILES:%.mlb=%.res)
+RESFILES=$(TESTFILES:%.sml=%.res) $(MLBTESTFILES:%.mlb=%.res) compileonly.res
 
 MLKIT ?= SML_LIB=`pwd`/../.. `pwd`/../../bin/mlkit
 BARRY ?= SML_LIB=`pwd`/../.. `pwd`/../../bin/barry
@@ -34,6 +34,21 @@ multi.exe: multi.mlb multiA.sml multiB.sml Makefile
 	(echo '$$(SML_LIB)/basis/basis.mlb'; grep '^\./MLB/Barry/' run.mlb) > multi-barry.mlb
 	@echo "$(MLKIT) -output $@ multi-barry.mlb" >> complog.txt
 	$(MLKIT) -output $@ multi-barry.mlb
+
+# -c compiles a file on its own and does not link, so there is no executable
+# to run; check instead that the compilation unit came out as a single Core ML
+# file and that the file elaborates.
+compileonly.res: compileonly.sml Makefile
+	@echo "$(BARRY) -c compileonly.sml" >> complog.txt
+	$(BARRY) -c -namebase compileonly -output co compileonly.sml
+	@n=`ls co.*.sml 2>/dev/null | wc -l`; \
+	 if [ "$$n" = 1 ] \
+	    && $(MLKIT) -c -no_basislib -namebase co -output co.chk co.compileonly.sml.sml >/dev/null 2>&1; \
+	 then echo "Test compileonly: OK" > $@; \
+	 else echo "Test compileonly: *** ERR: $$n Core ML files, or it does not elaborate ***" > $@; \
+	 fi
+	@cat $@
+	@cat $@ >> complog.txt
 
 %.out: %.exe
 	@echo "./$< > $@" >> complog.txt
@@ -68,4 +83,4 @@ prepare:
 
 .PHONY: clean
 clean:
-	rm -rf MLB *~ *.res *.out complog.txt run.mlb run *.exe multi-barry.mlb
+	rm -rf MLB *~ *.res *.out complog.txt run.mlb run *.exe multi-barry.mlb co.*

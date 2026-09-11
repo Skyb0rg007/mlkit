@@ -351,6 +351,15 @@ functor ManagerObjects(
 	    in files(modc,nil)
 	    end
 
+	fun merge_units modc =
+	    (* target_files records a file without its directory; the emitted
+	     * files sit next to the output file (SystemTools.emit) *)
+	    let val d = OS.Path.dir (Flags.get_string_entry "output")
+		fun root f = if d = "" then OS.Path.file f
+			     else d ## OS.Path.file f
+	    in Execution.merge_units (map root (target_files modc))
+	    end
+
 	val pu =
 	    let fun toInt EMPTY_MODC = 0
 		  | toInt (SEQ_MODC _) = 1
