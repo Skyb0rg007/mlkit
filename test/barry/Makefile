@@ -2,7 +2,9 @@ TESTFILES=fib35.sml life.sml testdyn1.sml general.sml string.sml qsort.sml fft.s
           tststrcmp.sml msort.sml int.sml precedence.sml simple.sml mandelbrot.sml \
           professor.sml wordcase.sml exncase.sml charcmp.sml
 
-RESFILES=$(TESTFILES:%.sml=%.res)
+MLBTESTFILES=multi.mlb
+
+RESFILES=$(TESTFILES:%.sml=%.res) $(MLBTESTFILES:%.mlb=%.res)
 
 MLKIT ?= SML_LIB=`pwd`/../.. `pwd`/../../bin/mlkit
 BARRY ?= SML_LIB=`pwd`/../.. `pwd`/../../bin/barry
@@ -17,6 +19,17 @@ MLB/Barry/%.sml.sml: %.sml Makefile
 %.exe: MLB/Barry/%.sml.sml Makefile
 	@echo "$(MLKIT) -output $@ $<" >> complog.txt
 	$(MLKIT) -output $@ $<
+
+# An mlb-file is barified into one unit per source file, plus a unit per functor
+# application; run.mlb lists them in dependency order.  Recompiling them against
+# the real Basis Library checks that a name Barry prints in one unit is spelled
+# the same way in the units that refer to it.
+multi.exe: multi.mlb multiA.sml multiB.sml Makefile
+	@echo "$(BARRY) multi.mlb" >> complog.txt
+	$(BARRY) multi.mlb
+	(echo '$$(SML_LIB)/basis/basis.mlb'; grep '^\./MLB/Barry/' run.mlb) > multi-barry.mlb
+	@echo "$(MLKIT) -output $@ multi-barry.mlb" >> complog.txt
+	$(MLKIT) -output $@ multi-barry.mlb
 
 %.out: %.exe
 	@echo "./$< > $@" >> complog.txt
@@ -51,4 +64,4 @@ prepare:
 
 .PHONY: clean
 clean:
-	rm -rf MLB *~ *.res *.out complog.txt run.mlb run *.exe
+	rm -rf MLB *~ *.res *.out complog.txt run.mlb run *.exe multi-barry.mlb

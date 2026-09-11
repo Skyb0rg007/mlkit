@@ -1532,8 +1532,16 @@ structure LambdaExp : LAMBDA_EXP =
     val layoutLambdaExp = fn e => layoutLambdaExp(e,0)
 
     fun barify a =
-        (barify_p := true;
-         layoutPgm a before barify_p := false)
+        let val base = Name.baseGet()
+            (* Lvars.pr_lvar' and friends leave a name's base out when it is the
+             * base of the unit being compiled.  Barry prints a name in every unit
+             * that mentions it, so the spelling must not depend on which unit that
+             * is; setting the current base to one no name can have makes every
+             * name print with its own base. *)
+            val () = Name.baseSet ""
+        in barify_p := true;
+           layoutPgm a before (barify_p := false; Name.baseSet base)
+        end
 
     (* Picklers *)
     val pu_tyvar = Pickle.word
