@@ -1234,7 +1234,19 @@ structure LambdaExp : LAMBDA_EXP =
          | (CCALLprim{name="__div_f64", ...}, [_,_]) =>  layout_infix context 7 " / "lambs
 
          | (EQUALprim{instance},[_,_]) => layout_infix context 4 " = "lambs
+         | (CCALLprim{name="__equal_char", ...}, [_,_]) => layout_infix context 4 " = "lambs
+         | (CCALLprim{name="__equal_word8", ...}, [_,_]) => layout_infix context 4 " = "lambs
+         | (CCALLprim{name="__equal_word31", ...}, [_,_]) => layout_infix context 4 " = "lambs
+         | (CCALLprim{name="__equal_word32ub", ...}, [_,_]) => layout_infix context 4 " = "lambs
+         | (CCALLprim{name="__equal_word63", ...}, [_,_]) => layout_infix context 4 " = "lambs
+         | (CCALLprim{name="__equal_word64ub", ...}, [_,_]) => layout_infix context 4 " = "lambs
+         | (CCALLprim{name="__equal_int31", ...}, [_,_]) => layout_infix context 4 " = "lambs
+         | (CCALLprim{name="__equal_int32ub", ...}, [_,_]) => layout_infix context 4 " = "lambs
+         | (CCALLprim{name="__equal_int63", ...}, [_,_]) => layout_infix context 4 " = "lambs
+         | (CCALLprim{name="__equal_int64ub", ...}, [_,_]) => layout_infix context 4 " = "lambs
 
+         | (CCALLprim{name="__less_char", ...}, [_,_]) => layout_infix context 4 " < "lambs
+         | (CCALLprim{name="__less_word8", ...}, [_,_]) => layout_infix context 4 " < "lambs
          | (CCALLprim{name="__less_word31", ...}, [_,_]) => layout_infix context 4 " < "lambs
          | (CCALLprim{name="__less_word32ub", ...}, [_,_]) => layout_infix context 4 " < "lambs
          | (CCALLprim{name="__less_word63", ...}, [_,_]) => layout_infix context 4 " < "lambs
@@ -1247,6 +1259,8 @@ structure LambdaExp : LAMBDA_EXP =
          | (CCALLprim{name="__less_f64", ...}, [_,_]) => layout_infix context 4 " < "lambs
          | (CCALLprim{name="__less_string", ...}, [_,_]) => layout_infix context 4 " < "lambs
 
+         | (CCALLprim{name="__greater_char", ...}, [_,_]) => layout_infix context 4 " > "lambs
+         | (CCALLprim{name="__greater_word8", ...}, [_,_]) => layout_infix context 4 " > "lambs
          | (CCALLprim{name="__greater_word31", ...}, [_,_]) => layout_infix context 4 " > "lambs
          | (CCALLprim{name="__greater_word32ub", ...}, [_,_]) => layout_infix context 4 " > "lambs
          | (CCALLprim{name="__greater_word63", ...}, [_,_]) => layout_infix context 4 " > "lambs
@@ -1259,6 +1273,8 @@ structure LambdaExp : LAMBDA_EXP =
          | (CCALLprim{name="__greater_f64", ...}, [_,_]) => layout_infix context 4 " > "lambs
          | (CCALLprim{name="__greater_string", ...}, [_,_]) => layout_infix context 4 " > "lambs
 
+         | (CCALLprim{name="__lesseq_char", ...}, [_,_]) => layout_infix context 4 " <= "lambs
+         | (CCALLprim{name="__lesseq_word8", ...}, [_,_]) => layout_infix context 4 " <= "lambs
          | (CCALLprim{name="__lesseq_word31", ...}, [_,_]) => layout_infix context 4 " <= "lambs
          | (CCALLprim{name="__lesseq_word32ub", ...}, [_,_]) => layout_infix context 4 " <= "lambs
          | (CCALLprim{name="__lesseq_word63", ...}, [_,_]) => layout_infix context 4 " <= "lambs
@@ -1271,6 +1287,8 @@ structure LambdaExp : LAMBDA_EXP =
          | (CCALLprim{name="__lesseq_f64", ...}, [_,_]) => layout_infix context 4 " <= "lambs
          | (CCALLprim{name="__lesseq_string", ...}, [_,_]) => layout_infix context 4 " <= "lambs
 
+         | (CCALLprim{name="__greatereq_char", ...}, [_,_]) => layout_infix context 4 " >= "lambs
+         | (CCALLprim{name="__greatereq_word8", ...}, [_,_]) => layout_infix context 4 " >= "lambs
          | (CCALLprim{name="__greatereq_word31", ...}, [_,_]) => layout_infix context 4 " >= "lambs
          | (CCALLprim{name="__greatereq_word32ub", ...}, [_,_]) => layout_infix context 4 " >= "lambs
          | (CCALLprim{name="__greatereq_word63", ...}, [_,_]) => layout_infix context 4 " >= "lambs
