@@ -27,6 +27,10 @@ MLB/Barry/%.sml.sml: %.sml Makefile
 multi.exe: multi.mlb multiA.sml multiB.sml Makefile
 	@echo "$(BARRY) multi.mlb" >> complog.txt
 	$(BARRY) multi.mlb
+	@n=`grep -c '^\./MLB/Barry/' run.mlb`; \
+	  if [ "$$n" != 2 ]; then \
+	     echo "*** ERR: Barry emitted $$n files for 2 source files ***"; exit 1; \
+	  fi
 	(echo '$$(SML_LIB)/basis/basis.mlb'; grep '^\./MLB/Barry/' run.mlb) > multi-barry.mlb
 	@echo "$(MLKIT) -output $@ multi-barry.mlb" >> complog.txt
 	$(MLKIT) -output $@ multi-barry.mlb
