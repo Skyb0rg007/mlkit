@@ -44,10 +44,18 @@ it an mlb-file or a Standard ML file on the command line:
 
     $ bin/barry kitdemo/Set.mlb
 
-Output is written to files in the `MLB/` directory. To avoid inclusion of
-the Standard ML Basis Library, which comes with Barry, use the option
-`-no_basislib`. You may wish to inspect some of the output from
-compiling the Basis Library, to learn how Barry deals with primitives.
+Output is written to files in the `MLB/` directory. Each source file is
+translated into one Core Standard ML file, `MLB/Barry/<source file>.sml`,
+next to the source file's own `MLB/` directory; the generated `run.mlb`
+lists those files in the order they must be compiled. Barry compiles the
+body of each functor application into a compilation unit of its own, and
+the `.unit` files those are written to are intermediate results that make
+up the Core ML file.
+
+To avoid inclusion of the Standard ML Basis Library, which comes with
+Barry, use the option `-no_basislib`. You may wish to inspect some of the
+output from compiling the Basis Library, to learn how Barry deals with
+primitives.
 
 ## Modifying the Barry Pretty-Printer
 
