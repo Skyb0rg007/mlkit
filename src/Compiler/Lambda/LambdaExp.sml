@@ -103,6 +103,12 @@ structure LambdaExp : LAMBDA_EXP =
     fun isCharType (CONStype(_,tn,_)) = TyName.eq (tn, TyName.tyName_CHAR)
       | isCharType _ = false
 
+    fun pr_char_const (w:IntInf.int) : string =
+        "#\"" ^ Char.toString (Char.chr (IntInf.toInt w)) ^ "\""
+
+    fun pr_word_const (w:IntInf.int) : string =
+        "0wx" ^ IntInf.fmt StringCvt.HEX w
+
     fun contains_regvars t =
         case t of
             TYVARtype _ => false
@@ -988,9 +994,8 @@ structure LambdaExp : LAMBDA_EXP =
               PP.NODE{start="0wx" ^ IntInf.fmt StringCvt.HEX w ^ ":", finish=" ",indent=0,
                       children=[layoutType tau],
                       childsep=PP.NOSEP}
-            else if isCharType tau then
-              PP.LEAF("#\"" ^ Char.toString (Char.chr (IntInf.toInt w)) ^ "\"")
-            else PP.LEAF("0wx" ^ IntInf.fmt StringCvt.HEX w)
+            else if isCharType tau then PP.LEAF(pr_char_const w)
+            else PP.LEAF(pr_word_const w)
 
       | STRING (s,NONE) => PP.LEAF(quote s)
       | STRING (s,SOME rv) => PP.LEAF(quote s ^ "`" ^ RegVar.pr rv)
@@ -1052,7 +1057,15 @@ structure LambdaExp : LAMBDA_EXP =
       | SWITCH_I {switch, precision} =>
           layoutSwitch layoutLambdaExp IntInf.toString switch
       | SWITCH_W {switch, precision, tyname} =>
-          layoutSwitch layoutLambdaExp (fn w => "0x" ^ IntInf.fmt StringCvt.HEX w) switch
+          let (* the patterns must be word (or char) constants, not integer
+               * constants, for the barified program to type check *)
+              fun show w =
+                  if !barify_p then
+                    if TyName.eq(tyname,TyName.tyName_CHAR) then pr_char_const w
+                    else pr_word_const w
+                  else "0x" ^ IntInf.fmt StringCvt.HEX w
+          in layoutSwitch layoutLambdaExp show switch
+          end
       | SWITCH_S sw =>
           layoutSwitch layoutLambdaExp (fn x => "\"" ^ String.toString x ^ "\"") sw
       | SWITCH_C sw =>
