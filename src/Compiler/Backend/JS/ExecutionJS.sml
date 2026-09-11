@@ -110,6 +110,8 @@ structure ExecutionJS : EXECUTION =
     val () = Flags.turn_off "values_64bit"
     val () = Flags.turn_on "narrow_reals"
 
+    fun merge_units (_: string list) = ()   (* one file per unit already *)
+
     fun link_files_with_runtime_system _ files run =
 	let val html_file = run ^ ".html"
 	    val os = TextIO.openOut html_file

@@ -415,6 +415,7 @@ structure ExecutionX64 : EXECUTION =
 
       fun link_files_with_runtime_system infos =
           link_files_with_runtime_system0 (path_to_runtime (link_may_spawn infos))
+      fun merge_units (_: string list) = ()   (* object code; nothing to merge *)
 
     end
 
