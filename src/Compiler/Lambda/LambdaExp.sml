@@ -571,7 +571,14 @@ structure LambdaExp : LAMBDA_EXP =
       | EXCONprim excon =>
           PP.LEAF(pr_excon excon)
       | DEEXCONprim excon =>
-          PP.LEAF("deexcon" ^ pr_excon excon)
+          if !barify_p then
+            PP.NODE{start="(fn y => case ",
+                    childsep=PP.RIGHT " of ",
+                    children=[PP.LEAF "y",
+                              PP.LEAF (pr_excon excon ^ " x => x")],
+                    finish=")",
+                    indent=1}
+          else PP.LEAF("deexcon" ^ pr_excon excon)
       | RECORDprim {regvar=NONE} => PP.LEAF("record")
       | RECORDprim {regvar=SOME rv} => PP.LEAF("record(" ^ RegVar.pr rv ^ ")")
       | SELECTprim {index=i} => PP.LEAF("select(" ^ Int.toString i ^ ")")
@@ -1280,6 +1287,13 @@ structure LambdaExp : LAMBDA_EXP =
            if !barify_p then
              case (prim,lambs) of
                  (DROPprim, [lamb]) => layoutLambdaExp(lamb,context)
+               | (DEEXCONprim excon, [lamb]) =>
+                 PP.NODE{start="(case ",
+                         childsep=PP.RIGHT " of ",
+                         children=[layoutLambdaExp(lamb,0),
+                                   PP.LEAF (pr_excon excon ^ " x => x")],
+                         finish=")",
+                         indent=1}
                | (CCALLprim{name="__equal_ptr", ...}, _) => PP.LEAF "false"
                | (CCALLprim{name="__div_int64ub", ...}, [a,b,_]) => layout_infix context 7 " div " [a,b]
                | (CCALLprim{name="__mod_int64ub", ...}, [a,b,_]) => layout_infix context 7 " mod " [a,b]

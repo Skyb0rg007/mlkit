@@ -1491,7 +1491,14 @@ in
                 | Scon (SCon.REAL _,_) => die "compile_node: real"
                 | Excon _ => switch
                     (SWITCH_E,
-                     fn (Excon {longid, ...},env) => ((#1 (lookupLongexcon env longid (OTHER "compile_node, Excon")), NONE),env)
+                     fn (Excon {longid, nullary},env) =>
+                     let val excon = #1 (lookupLongexcon env longid (OTHER "compile_node, Excon"))
+                     in if nullary then ((excon, NONE), env)
+                        else (* as for Con above, the optional lvar records that the
+                              * exception constructor takes an argument, which Barry
+                              * needs to print the pattern *)
+                          ((excon, SOME (Lvars.newLvar())), env)
+                     end
                       | _ => die "compile_node: fn Excon {longid, ...} =>")
                 | Tuple _ => die "compile_node: Tuple")
              end
