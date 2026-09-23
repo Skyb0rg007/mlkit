@@ -845,7 +845,17 @@ end
 
   (*Entries not included in command-line options, but in lookup functions*)
 
-  val _ = add_bool_entry0 ("eliminate_polymorphic_equality", eliminate_polymorphic_equality)
+  val _ = add_bool_entry
+              {long="eliminate_polymorphic_equality", short=NONE, neg=true,
+               menu=["Control", "eliminate polymorphic equality"],
+               item=eliminate_polymorphic_equality,
+               desc="Replace polymorphic equality with equality functions\n\
+                    \generated for the types at which it is used; a function\n\
+                    \that compares values of an equality type variable is\n\
+                    \given an extra argument for each such variable. Barry\n\
+                    \turns this option off, so that its output uses the =\n\
+                    \operator, but a backend that has no polymorphic equality\n\
+                    \of its own wants it on."}
 
   val _ = add_bool_entry
               {long="compile_only", short=SOME "c",
