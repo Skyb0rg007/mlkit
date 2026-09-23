@@ -1147,7 +1147,11 @@ structure LambdaExp : LAMBDA_EXP =
                   case lv_opt of
                       SOME lvar => PP.LEAF (pr_lvar lvar)
                     | NONE =>
-                      maybepar context
+                      (* a case expression extends as far to the right as
+                       * possible, so it must be parenthesised in any context
+                       * other than the top of an expression: `case e of C x
+                       * => x = e'` compares x to e' in the rule body *)
+                      parenthesise (context > 0)
                                (PP.NODE{start="case ",
                                         childsep=PP.RIGHT " of ",
                                         children=[layoutLambdaExp(lamb,0),
