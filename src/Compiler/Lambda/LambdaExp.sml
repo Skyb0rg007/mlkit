@@ -485,6 +485,22 @@ structure LambdaExp : LAMBDA_EXP =
 
    val barify_p = ref false
 
+   (* A deconstruction whose lv_opt is SOME lv can be printed as just lv only
+    * inside a rule `C lv => ...` of the switch that binds lv; the optimiser can
+    * remove that switch (when it knows the constructor) and leave the
+    * deconstruction behind, which then has to be printed in full.  This is the
+    * set of variables that the enclosing rules bind.
+    *)
+   val barify_bound : Lvars.lvar list ref = ref nil
+   fun barify_is_bound lv = List.exists (fn lv' => Lvars.eq(lv,lv')) (!barify_bound)
+   fun barify_with_bound NONE f = f ()
+     | barify_with_bound (SOME lv) f =
+       let val saved = !barify_bound
+       in barify_bound := lv :: saved;
+          (f () before barify_bound := saved)
+          handle X => (barify_bound := saved; raise X)
+       end
+
    fun member eq c nil = false
      | member eq c (y::ys) = eq(c,y) orelse member eq c ys
 
@@ -554,7 +570,14 @@ structure LambdaExp : LAMBDA_EXP =
       | DECONprim{con,instances,lv_opt} =>
               if !barify_p then
                 case lv_opt of
-                    SOME lvar => PP.LEAF (pr_lvar lvar)
+                    SOME lvar =>
+                    if barify_is_bound lvar then PP.LEAF (pr_lvar lvar)
+                    else PP.NODE{start="fn y => case ",
+                                 childsep=PP.RIGHT " of ",
+                                 children=[PP.LEAF "y",
+                                           PP.LEAF (pr_con con ^ " x => x")],
+                                 finish="",
+                                 indent=1}
                   | NONE => PP.NODE{start="fn y => case ",
                                     childsep=PP.RIGHT " of ",
                                     children=[PP.LEAF "y",
@@ -1092,7 +1115,28 @@ structure LambdaExp : LAMBDA_EXP =
                  | pr_c (c,SOME lv) = if !barify_p then pr_con c ^ " " ^ pr_lvar lv
                                       else pr_con c
                val sw = if !barify_p then unwildify sw else sw
-          in layoutSwitch layoutLambdaExp pr_c sw
+               (* as layoutSwitch, but each rule's variable is recorded as
+                * bound while the rule's body is laid out *)
+               fun layoutBinding (SWITCH(lamb,rules,wildcardOpt)) =
+                   let fun child (x,t) =
+                           PP.NODE{start=x ^ " => ",finish="",indent=2,childsep=PP.NOSEP,
+                                   children=[t]}
+                       val head = PP.NODE{start="case ",finish="",childsep=PP.NOSEP, indent=0,
+                                          children=[layoutLambdaExp(lamb,0)]}
+                       val rules =
+                           map (fn (c as (_,lvopt),e) =>
+                                   child (pr_c c, barify_with_bound lvopt
+                                                  (fn () => layoutLambdaExp(e,1)))) rules
+                       val rules = case wildcardOpt of
+                                       SOME e => rules @ [child ("_", layoutLambdaExp(e,1))]
+                                     | NONE => rules
+                   in PP.NODE{start="(",finish=")",indent=1,childsep=PP.RIGHT " of ",
+                              children=[head,
+                                        PP.NODE{start="",finish="",indent=3,
+                                                childsep=PP.LEFT " | ",children=rules}]}
+                   end
+          in if !barify_p then layoutBinding sw
+             else layoutSwitch layoutLambdaExp pr_c sw
           end
       | SWITCH_E sw =>
           let fun pr_exc (e,NONE) = pr_excon e
@@ -1145,7 +1189,15 @@ structure LambdaExp : LAMBDA_EXP =
          | (DECONprim{con,instances,lv_opt},[lamb]) =>
               if !barify_p then
                   case lv_opt of
-                      SOME lvar => PP.LEAF (pr_lvar lvar)
+                      SOME lvar =>
+                      if barify_is_bound lvar then PP.LEAF (pr_lvar lvar)
+                      else parenthesise (context > 0)
+                               (PP.NODE{start="case ",
+                                        childsep=PP.RIGHT " of ",
+                                        children=[layoutLambdaExp(lamb,0),
+                                                  PP.LEAF (pr_con con ^ " x => x")],
+                                        finish="",
+                                        indent=1})
                     | NONE =>
                       (* a case expression extends as far to the right as
                        * possible, so it must be parenthesised in any context
