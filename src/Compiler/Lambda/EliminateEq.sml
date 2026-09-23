@@ -428,7 +428,11 @@ structure EliminateEq : ELIMINATE_EQ =
         val eq_body =
             let fun varExp lv = VAR{lvar=lv,instances=nil,regvars=nil}
                 val ptr_eq_exp = ptr_eq tau_tn (varExp p0) (varExp p1)
-            in if List.null cbs1 then (*enumeration*)
+            in if List.null cbs1 andalso equalelim_opt_unboxed() then (*enumeration*)
+                 (* the values of an enumeration are unboxed, so comparing them
+                  * as pointers compares them as values; a backend that does not
+                  * represent them that way turns equalelim_opt_unboxed off and
+                  * gets a switch over the constructors instead *)
                  ptr_eq_exp
                else let val body = big_sw single
                     in if single (* orelse nonrecursive*) then body
