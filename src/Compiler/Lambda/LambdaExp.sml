@@ -1453,11 +1453,27 @@ structure LambdaExp : LAMBDA_EXP =
 
     and layout_let_fix_and_exception lexp =
           let
+            (* a chain of bindings that ends in a FRAME is the top level of a
+             * unit, which Barry prints as `local ... in ... end` *)
+            fun ends_in_frame lexp =
+                  case lexp of
+                    LET{scope,...} => ends_in_frame scope
+                  | FIX{scope,...} => ends_in_frame scope
+                  | EXCEPTION(_,_,scope) => ends_in_frame scope
+                  | LETREGION{scope,...} => ends_in_frame scope
+                  | FRAME _ => true
+                  | _ => false
+            (* The type of a monomorphic binding at the top level of a unit
+             * need not be determined by the binding itself -- in `val r = ref
+             * nil` it is fixed by the uses of r that follow -- so Barry prints
+             * the type that the MLKit inferred, lest another compiler have to
+             * work it out from declarations it has not seen yet. *)
+            val annotate = !barify_p andalso ends_in_frame lexp
             fun layout_rec lexp =
                   case lexp of
                     LET{pat, bind, scope} =>
                     let val (binds, body, frame) = layout_rec scope
-                    in (mk_valbind(pat,bind)::binds, body, frame)
+                    in (mk_valbind' annotate (pat,bind)::binds, body, frame)
                     end
                   | FIX({functions,scope}) =>
                     let val (binds', body, frame) = layout_rec scope
@@ -1487,8 +1503,13 @@ structure LambdaExp : LAMBDA_EXP =
                     childsep=PP.LEFT " in "}
           end
 
-      and mk_valbind (pat, e) =
-        let val child1 = layPatLet pat   (*NB*)
+      and mk_valbind' annotate (pat, e) =
+        let val child1 =
+                case (annotate, pat) of
+                    (true, [(lvar,nil,tau)]) =>
+                    PP.NODE{start=pr_lvar lvar ^ " : ", finish="", indent=4,
+                            childsep=PP.NOSEP, children=[layoutType tau]}
+                  | _ => layPatLet pat   (*NB*)
         in PP.NODE{start = "val ",finish="",childsep=PP.RIGHT " = ",
                    indent=4, children=[child1, layoutLambdaExp(e,0)] }
         end
