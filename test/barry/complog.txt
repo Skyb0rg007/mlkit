@@ -1,0 +1,3 @@
+SML_LIB=/home/skye/Research/3cps/mlkit-frontend/vendor/mlkit/test/barry/../.. /home/skye/Research/3cps/mlkit-frontend/vendor/mlkit/test/barry/../../bin/barry fib35.sml
+SML_LIB=/home/skye/Research/3cps/mlkit-frontend/vendor/mlkit/test/barry/../.. /home/skye/Research/3cps/mlkit-frontend/vendor/mlkit/test/barry/../../bin/mlkit -output fib35.exe MLB/Barry/fib35.sml.sml
+./fib35.exe > fib35.out

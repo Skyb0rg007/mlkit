@@ -177,7 +177,7 @@ structure Pickle :> PICKLE = (* was : *)
     end = struct
       type 'a t_from = ('a, word) H.hash_table
       type 'a t_to = (word, 'a) H.hash_table
-      val reset_fun = ref id
+      val reset_fun = ref (id : unit -> unit)
       fun register_reset f = reset_fun := (f o !reset_fun)
       fun mkFrom {hash: 'a -> word, eq: 'a * 'a -> bool} : 'a t_from =
           H.mkTable (Word.toIntX o hash, eq) (10,PickleExn)

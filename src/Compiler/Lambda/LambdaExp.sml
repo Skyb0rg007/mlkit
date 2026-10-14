@@ -608,6 +608,31 @@ structure LambdaExp : LAMBDA_EXP =
     fun layoutRegVars regvars = PP.NODE {start="", finish="", childsep=PP.LEFT " ", indent=0,
                                          children = map layoutRegVar regvars}
 
+    (* A real constant is kept as it was written, and SML lets `1e10` leave out
+     * the fraction; Barry writes `1.0e10`, which every reader of Core ML
+     * accepts. *)
+    fun pr_real_const r =
+        if CharVector.exists (fn c => c = #".") r then r
+        else case CharVector.findi (fn (_, c) => c = #"e" orelse c = #"E") r of
+                 SOME (i, _) => String.substring (r, 0, i) ^ ".0" ^ String.extract (r, i, NONE)
+               | NONE => r ^ ".0"
+
+    (* the instance of an EQUALprim is the type compared or, as EliminateEq
+     * writes it, the pair of them *)
+    fun isBoolType (CONStype([], tn, _)) = TyName.eq (tn, TyName.tyName_BOOL)
+      | isBoolType (RECORDtype([t, _], _)) = isBoolType t
+      | isBoolType _ = false
+
+    (* Core ML has no overloading to resolve a bare `abs` with, so Barry writes
+     * the function out, at the type it is used at; at real, `a - a` makes
+     * either zero positive, as `fabs` does *)
+    fun layout_abs name =
+        if not (!barify_p) then PP.LEAF "abs"
+        else if name = "__abs_real"
+          then PP.LEAF "(fn barry_abs => if barry_abs < 0.0 then ~ barry_abs \
+                       \else if 0.0 < barry_abs then barry_abs else barry_abs - barry_abs)"
+          else PP.LEAF "(fn barry_abs => if barry_abs < 0 then ~ barry_abs else barry_abs)"
+
     fun layoutPrim layoutType prim =
      case prim of
         CONprim{con,instances,regvar} =>
@@ -663,11 +688,12 @@ structure LambdaExp : LAMBDA_EXP =
       | CCALLprim{name="__neg_int63",...} => PP.LEAF("~" )
       | CCALLprim{name="__neg_int64ub",...} => PP.LEAF("~" )
       | CCALLprim{name="__neg_real",...} => PP.LEAF("~" )
-      | CCALLprim{name="__abs_int31",...} => PP.LEAF("abs" )
-      | CCALLprim{name="__abs_int32ub",...} => PP.LEAF("abs" )
-      | CCALLprim{name="__abs_int63",...} => PP.LEAF("abs" )
-      | CCALLprim{name="__abs_int64ub",...} => PP.LEAF("abs" )
-      | CCALLprim{name="__abs_real",...} => PP.LEAF("abs" )
+      (* see layout_abs *)
+      | CCALLprim{name="__abs_int31",...} => layout_abs "__abs_int31"
+      | CCALLprim{name="__abs_int32ub",...} => layout_abs "__abs_int32ub"
+      | CCALLprim{name="__abs_int63",...} => layout_abs "__abs_int63"
+      | CCALLprim{name="__abs_int64ub",...} => layout_abs "__abs_int64ub"
+      | CCALLprim{name="__abs_real",...} => layout_abs "__abs_real"
       | CCALLprim{name="floorFloat",...} => PP.LEAF("floor" )
       | CCALLprim{name="realInt",...} => PP.LEAF("real" )
       | CCALLprim{name="__get_ctx",...} => PP.LEAF("()" )
@@ -879,6 +905,14 @@ structure LambdaExp : LAMBDA_EXP =
           | RECORDtype (taus,rvopt) =>
             (case taus of
                  [] (* unit *) => PP.LEAF (if #repl config then "{}" else "{}" ^ pr_rvopt rvopt)
+               (* a record with one field is a tuple with one component, which
+                * Core ML cannot write, so Barry pairs the component with a unit *)
+               | [tau] => if !barify_p then
+                            PP.NODE{start="(",finish="*{})",indent=1,
+                                    children=[layoutType0 config tau],childsep=PP.NOSEP}
+                          else PP.NODE{start="(",
+                                       finish=if #repl config then ")" else ")" ^ pr_rvopt rvopt,
+                                       indent=1,children=[layoutType0 config tau],childsep=PP.NOSEP}
                | _ => PP.NODE{start="(",
                               finish=if #repl config then ")" else ")" ^ pr_rvopt rvopt,
                               indent=1,
@@ -1085,7 +1119,7 @@ structure LambdaExp : LAMBDA_EXP =
 
       | STRING (s,NONE) => PP.LEAF(quote s)
       | STRING (s,SOME rv) => PP.LEAF(quote s ^ "`" ^ RegVar.pr rv)
-      | REAL (r,NONE) => PP.LEAF r
+      | REAL (r,NONE) => PP.LEAF (if !barify_p then pr_real_const r else r)
       | REAL (r,SOME rv) => PP.LEAF(r ^ "`" ^ RegVar.pr rv)
       | F64 r => PP.LEAF(r ^ "f64")
       | FN {pat,body} =>
@@ -1211,6 +1245,8 @@ structure LambdaExp : LAMBDA_EXP =
            let val finish = case opt of
                                 NONE => ")"
                               | SOME rv => ")`" ^ RegVar.pr rv
+               (* see RECORDtype in layoutType0 *)
+               val finish = case lambs of [_] => if !barify_p then ",())" else finish | _ => finish
            in PP.NODE{start="(",finish=finish,indent=1,
                       children=map (fn e => layoutLambdaExp(e,0)) lambs,
                       childsep=PP.RIGHT ","}
@@ -1223,7 +1259,7 @@ structure LambdaExp : LAMBDA_EXP =
            end
          | (SCRATCHMEMprim {sz=n},_) => PP.LEAF ("scratchmem(" ^ Int.toString n ^ ")")
          | (UB_RECORDprim,_) =>
-              let val (s,f) = if !barify_p then ("(",")") else ("<",">")
+              let val (s,f) = if !barify_p then ("(",case lambs of [_] => ",())" | _ => ")") else ("<",">")
               in PP.NODE{start=s,finish=f,indent=1,
                          children=(map (fn e => layoutLambdaExp(e,0)) lambs),
                          childsep=PP.RIGHT ","}
@@ -1346,7 +1382,16 @@ structure LambdaExp : LAMBDA_EXP =
          | (CCALLprim{name="divFloat", ...}, [_,_]) =>  layout_infix context 7 " / "lambs
          | (CCALLprim{name="__div_f64", ...}, [_,_]) =>  layout_infix context 7 " / "lambs
 
-         | (EQUALprim{instance},[_,_]) => layout_infix context 4 " = "lambs
+         | (EQUALprim{instance},[a,b]) =>
+           (* a Core ML compiler need not compare booleans with `=`, which on a
+            * datatype it may not support, so Barry compares them with `if`, and
+            * without the nested patterns that Barry's output otherwise avoids *)
+           if !barify_p andalso isBoolType instance then
+             PP.NODE{start="(fn (barry_eq_x, barry_eq_y) => if barry_eq_x then barry_eq_y \
+                           \else if barry_eq_y then false else true) (",
+                     finish=")", indent=1, childsep=PP.RIGHT ", ",
+                     children=[layoutLambdaExp(a,0), layoutLambdaExp(b,0)]}
+           else layout_infix context 4 " = "lambs
          | (CCALLprim{name="__equal_char", ...}, [_,_]) => layout_infix context 4 " = "lambs
          | (CCALLprim{name="__equal_word8", ...}, [_,_]) => layout_infix context 4 " = "lambs
          | (CCALLprim{name="__equal_word31", ...}, [_,_]) => layout_infix context 4 " = "lambs
@@ -1673,8 +1718,151 @@ structure LambdaExp : LAMBDA_EXP =
     val layoutLambdaPgm = layoutPgm
     val layoutLambdaExp = fn e => layoutLambdaExp(e,0)
 
-    fun barify a =
-        let val base = Name.baseGet()
+    (* Core ML need not have exception declarations inside expressions -- 3CPS
+     * has none -- so Barry lifts each local exception to the top of its unit,
+     * keeping it generative with the usual encoding of a universal type.  An
+     * evaluation of the declaration makes an identity, a fresh `unit ref`, and
+     * for an exception that carries a value of type t, a `t list ref` cell;
+     * the lifted exception carries the identity and, if it has one, a closure
+     * that puts its value in the cell.  A handler takes an exception for its
+     * own only if the identities agree, and otherwise goes on to the switch's
+     * default, as an exception from another evaluation would in SML. *)
+    local
+      fun mapSwitch f (SWITCH (e, arms, def)) =
+          SWITCH (f e, map (fn (c, b) => (c, f b)) arms, Option.map f def)
+    in
+    fun lift_local_exceptions lamb =
+        let
+          val lifted : (excon * Type) list ref = ref []
+          (* the identity and, for an exception that carries a value, the
+           * cell and the type of the value *)
+          val scopes : (excon * (lvar * (lvar * Type) option)) list ref = ref []
+          fun scopeOf exc =
+              Option.map #2 (List.find (fn (exc', _) => Excon.eq (exc, exc')) (!scopes))
+          fun listType tau = CONStype ([tau], TyName.tyName_LIST, NONE)
+          fun refType tau = CONStype ([tau], TyName.tyName_REF, NONE)
+          val idType = refType unitType
+          val writerType = ARROWtype ([unitType], NONE, [unitType], NONE)
+          val unitExp = PRIM (RECORDprim {regvar = NONE}, [])
+          fun var lv = VAR {lvar = lv, instances = [], regvars = []}
+          fun sel (i, e) = PRIM (SELECTprim {index = i}, [e])
+          fun nil' tau = PRIM (CONprim {con = Con.con_NIL, instances = [tau], regvar = NONE}, [])
+          fun cons' (tau, x) =
+              PRIM (CONprim {con = Con.con_CONS, instances = [tau], regvar = NONE},
+                    [PRIM (RECORDprim {regvar = NONE}, [x, nil' tau])])
+          fun seq (e1, e2) = LET {pat = [], bind = e1, scope = e2}
+          (* what the lifted exception carries, given the identity of the
+           * evaluation and a cell if the exception carries a value *)
+          fun carried (_, NONE) = idType
+            | carried (_, SOME _) = RECORDtype ([idType, writerType], NONE)
+          fun idOf (NONE, x) = x
+            | idOf (SOME _, x) = sel (0, x)
+          (* the value that x, the carried value of an exception of this
+           * evaluation, holds *)
+          fun valueOf ((cell, tau), x) =
+              seq (APP (sel (1, x), unitExp, NONE),
+                   sel (0, PRIM (DECONprim {con = Con.con_CONS, instances = [tau], lv_opt = NONE},
+                                 [PRIM (DEREFprim {instance = refType (listType tau)}, [var cell])])))
+          fun walk lamb =
+              case lamb of
+                  EXCEPTION (exc, tauOpt, scope) =>
+                  let val id = Lvars.newLvar ()
+                      val cell = Option.map (fn tau => (Lvars.newLvar (), tau)) tauOpt
+                      val () = scopes := (exc, (id, cell)) :: !scopes
+                      val () = lifted := (exc, carried (id, cell)) :: !lifted
+                      val scope = walk scope
+                      val scope =
+                          case cell of
+                              NONE => scope
+                            | SOME (c, tau) =>
+                              LET {pat = [(c, [], refType (listType tau))],
+                                   bind = PRIM (REFprim {instance = listType tau, regvar = NONE}, [nil' tau]),
+                                   scope = scope}
+                  in LET {pat = [(id, [], idType)],
+                          bind = PRIM (REFprim {instance = unitType, regvar = NONE}, [unitExp]),
+                          scope = scope}
+                  end
+                | PRIM (EXCONprim exc, args) =>
+                  (case (scopeOf exc, args) of
+                       (SOME (id, NONE), _) => PRIM (EXCONprim exc, [var id])
+                     | (SOME (id, SOME (cell, tau)), [arg]) =>
+                       let val v = Lvars.newLvar ()
+                           val u = Lvars.newLvar ()
+                           val write = FN {pat = [(u, unitType)],
+                                           body = PRIM (ASSIGNprim {instance = refType (listType tau)},
+                                                        [var cell, cons' (tau, var v)])}
+                       in LET {pat = [(v, [], tau)], bind = walk arg,
+                               scope = PRIM (EXCONprim exc, [PRIM (RECORDprim {regvar = NONE},
+                                                                    [var id, write])])}
+                       end
+                     | _ => PRIM (EXCONprim exc, map walk args))
+                | PRIM (DEEXCONprim exc, [arg]) =>
+                  (case scopeOf exc of
+                       SOME (_, SOME c) => valueOf (c, PRIM (DEEXCONprim exc, [walk arg]))
+                     | _ => PRIM (DEEXCONprim exc, [walk arg]))
+                | SWITCH_E (SWITCH (e, arms, def)) =>
+                  let val def = Option.map walk def
+                      fun arm ((exc, lvopt), body) =
+                          case (scopeOf exc, def) of
+                              (SOME (id, cell), SOME d) =>
+                              let val x = Lvars.newLvar ()
+                                  val body = walk body
+                                  val body =
+                                      case (cell, lvopt) of
+                                          (SOME (c as (_, tau)), SOME lv) =>
+                                          LET {pat = [(lv, [], tau)], bind = valueOf (c, var x), scope = body}
+                                        | _ => body
+                                  val same = PRIM (EQUALprim {instance = RECORDtype ([idType, idType], NONE)},
+                                                   [idOf (cell, var x), var id])
+                              in ((exc, SOME x),
+                                  SWITCH_C (SWITCH (same, [((Con.con_TRUE, NONE), body)], SOME d)))
+                              end
+                            | _ => ((exc, lvopt), walk body)
+                  in SWITCH_E (SWITCH (walk e, map arm arms, def))
+                  end
+                | VAR _ => lamb
+                | INTEGER _ => lamb
+                | WORD _ => lamb
+                | STRING _ => lamb
+                | REAL _ => lamb
+                | F64 _ => lamb
+                | FN {pat, body} => FN {pat = pat, body = walk body}
+                | LET {pat, bind, scope} => LET {pat = pat, bind = walk bind, scope = walk scope}
+                | LETREGION {regvars, scope} => LETREGION {regvars = regvars, scope = walk scope}
+                | FIX {functions, scope} => FIX {functions = map walkFunction functions, scope = walk scope}
+                | APP (f, a, t) => APP (walk f, walk a, t)
+                | RAISE (e, tl) => RAISE (walk e, tl)
+                | HANDLE (e, h) => HANDLE (walk e, walk h)
+                | SWITCH_I {switch, precision} =>
+                  SWITCH_I {switch = mapSwitch walk switch, precision = precision}
+                | SWITCH_W {switch, precision, tyname} =>
+                  SWITCH_W {switch = mapSwitch walk switch, precision = precision, tyname = tyname}
+                | SWITCH_S sw => SWITCH_S (mapSwitch walk sw)
+                | SWITCH_C sw => SWITCH_C (mapSwitch walk sw)
+                | TYPED (e, tau, cs) => TYPED (walk e, tau, cs)
+                | PRIM (p, es) => PRIM (p, map walk es)
+                | FRAME _ => lamb
+                | CHECK_REML _ => lamb
+          and walkFunction {lvar, regvars, tyvars, Type, constrs, bind} =
+              {lvar = lvar, regvars = regvars, tyvars = tyvars, Type = Type,
+               constrs = constrs, bind = walk bind}
+          (* the exceptions at the top level of the unit stay where they are *)
+          fun top lamb =
+              case lamb of
+                  LET {pat, bind, scope} => LET {pat = pat, bind = walk bind, scope = top scope}
+                | FIX {functions, scope} => FIX {functions = map walkFunction functions, scope = top scope}
+                | EXCEPTION (exc, tau, scope) => EXCEPTION (exc, tau, top scope)
+                | LETREGION {regvars, scope} => LETREGION {regvars = regvars, scope = top scope}
+                | _ => walk lamb
+          val lamb' = top lamb
+        in
+          List.foldl (fn ((exc, tau), acc) => EXCEPTION (exc, SOME tau, acc)) lamb' (!lifted)
+        end
+    end
+
+    fun barify (PGM (dbs, lamb)) =
+        let val a = PGM (dbs, lift_local_exceptions lamb)
+            val base = Name.baseGet()
             (* Lvars.pr_lvar' and friends leave a name's base out when it is the
              * base of the unit being compiled.  Barry prints a name in every unit
              * that mentions it, so the spelling must not depend on which unit that
