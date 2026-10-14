@@ -1,0 +1,421 @@
+.TH barry 1 "2026-03-17T16:01:59+01:00" "version v4.7.21" "MLKit - a compiler for Standard ML"
+.SH NAME
+barry \- A fullblown Standard ML compiler 
+.SH SYNOPSIS
+barry [OPTION]... [file.sml | file.sig | file.mlb]
+
+All possible options are listed below.
+.SH DEFAULTS
+\fB--SML_LIB\fR You_did_not_set_path_to_install_dir,
+\fB-aopt\fR on,
+\fB-verbose\fR off,
+\fB-c\fR off,
+\fB-timings\fR off,
+\fB-cfold\fR on,
+\fB--contract\fR on,
+\fB-cross_opt\fR off,
+\fB-debug\fR off,
+\fB--debug_linking\fR off,
+\fB--debug_man_enrich\fR off,
+\fB-dufa\fR on,
+\fB--eliminate_explicit_records\fR on,
+\fB--eliminate_polymorphic_equality\fR off,
+\fB--fix_floating\fR on,
+\fB-basislib\fR on,
+\fB--inline_functors\fR off,
+\fB-ltdce\fR on,
+\fB--log_to_file\fR off,
+\fB-max_inl_sz\fR 200,
+\fB-max_spec_sz\fR 200,
+\fB--messages\fR on,
+\fB--minimize_fixs\fR on,
+\fB--namebase\fR dummyBase,
+\fB-opt\fR on,
+\fB-o\fR run,
+\fB-j\fR 1,
+\fB--pretty_depth\fR 5,
+\fB--pretty_string_size\fR 80,
+\fB-Pceb\fR off,
+\fB--print_excon_name\fR off,
+\fB-Peb\fR off,
+\fB--print_lvar_name\fR off,
+\fB-Pole\fR off,
+\fB-Ppeast\fR off,
+\fB-Ptypestamps\fR off,
+\fB-Ptypes\fR off,
+\fB-quot\fR off,
+\fB--raggedRight\fR on,
+\fB-scratch\fR off,
+\fB-sig\fR off,
+\fB--safeLinkTimeElimination\fR off,
+\fB--specialize_recursive_functions\fR on,
+\fB-stats_opt\fR off,
+\fB--type_check_lambda\fR on,
+\fB--unbox_funargs\fR off,
+\fB-uncurry\fR off,
+\fB-w\fR 100.
+.SH DESCRIPTION
+When invoked, 
+.B barry
+will compile the specified sources into an executable file
+.B run
+through a series of translation phases. The various options can be used to control the printing of intermediate forms and to control which optimizations are performed. If source files are organised in ML Basis Files (files with extension .mlb), the compiler will memoize symbol table information and object code in the dedicated MLB directories located relative to the source files.
+
+If barry is invoked without source files, an interactive REPL is started. Type ':help;' within the REPL to learn more about its use.
+
+To learn more about programming with MLKit, consult the MLKit web page at
+
+.B http://melsman.github.io/mlkit
+.SH STANDARDS
+The MLKit implements Standard ML (Revised 1997) and has almost full support for the Standard ML Basis Library (version of 2002). See the MLKit home page for a detailed overview of the support for the Standard ML Basis Library.
+.SH EXAMPLES
+For examples, consult the MLKit manual "Programming with Regions in the MLKit", which is available from the MLKit home page.
+.SH OPTIONS
+.IP "\fB--SML_LIB S\fR" 4
+.IX Item "--SML_LIB S"
+Installation directory for the MLKit standard library.
+For normal execution you should not modify this value.
+However, if you wish to use the MLKit with an altered
+runtime system you can update this setting and the
+system will try to link to a runtime system found in
+the specified install directory.
+.IP "\fB--aggressive_opt, -aopt\fR" 4
+.IX Item "--aggressive_opt, -aopt"
+Enable aggressive optimisations, including aggressive
+inlining. These optimisations are not guaranteed to be
+region safe. Turning off garbage collection automatically
+turns off this option.
+.IP "\fB--chat, -verbose\fR" 4
+.IX Item "--chat, -verbose"
+Print a message for each compilation step in the compiler.
+.IP "\fB--compile_only, -c\fR" 4
+.IX Item "--compile_only, -c"
+Compile only. Suppresses generation of executable
+.IP "\fB--compiler_timings, -timings\fR" 4
+.IX Item "--compiler_timings, -timings"
+Show compiler timings for each compilation phase.
+.IP "\fB--constant_folding, -cfold\fR" 4
+.IX Item "--constant_folding, -cfold"
+Enable constant folding optimisations.
+.IP "\fB--contract\fR" 4
+.IX Item "--contract"
+Contract is responsible for inlining, specialization,
+elimination of dead code, and much else (Lambda
+Expression Optimiser).
+.IP "\fB--cross_module_opt, -cross_opt\fR" 4
+.IX Item "--cross_module_opt, -cross_opt"
+Enable cross-module optimisation including inlining
+of small functions and specialisation of small
+recursive functions. Which optimisations are performed
+across modules is controlled by individual optimisation
+flags.
+.IP "\fB--debug_compiler, -debug\fR" 4
+.IX Item "--debug_compiler, -debug"
+Print intermediate forms of a program during compilation.
+.IP "\fB--debug_linking\fR" 4
+.IX Item "--debug_linking"
+Debug linking of target code by showing which object
+files are linked together.
+.IP "\fB--debug_man_enrich\fR" 4
+.IX Item "--debug_man_enrich"
+Show information about why a program unit need be
+recompiled. A program unit (or a functor body)
+is recompiled if either (a) the program unit is
+modified, or (b) information about an identifier
+for which the program unit depends upon has changed.
+.IP "\fB--drop_unused_funargs, -dufa\fR" 4
+.IX Item "--drop_unused_funargs, -dufa"
+Drop function arguments that are unused.
+.IP "\fB--eliminate_explicit_records\fR" 4
+.IX Item "--eliminate_explicit_records"
+Eliminate bindings of explicit records only used for
+selections. Transform
+      let r = (e1,...,en) in ... #i r .. #j r ...
+into
+      let x1=e1 in ... let xn=en in ... xi .. xj ...
+(Lambda Expression Optimiser).
+.IP "\fB--eliminate_polymorphic_equality\fR" 4
+.IX Item "--eliminate_polymorphic_equality"
+Replace polymorphic equality with equality functions
+generated for the types at which it is used; a function
+that compares values of an equality type variable is
+given an extra argument for each such variable. Barry
+turns this option off, so that its output uses the =
+operator, but a backend that has no polymorphic equality
+of its own wants it on.
+.IP "\fB--fix_floating\fR" 4
+.IX Item "--fix_floating"
+Float fix-bindings into immediate let-bindings when
+possible to help tail-calls not be captured in let-
+region bindings.
+.IP "\fB--help\fR" 4
+.IX Item "--help"
+Print extended help information and exit.
+.IP "\fB--help S\fR" 4
+.IX Item "--help S"
+Print help information about an option and exit.
+.IP "\fB--import_basislib, -basislib\fR" 4
+.IX Item "--import_basislib, -basislib"
+Import Basis Library automatically in your projects. If 
+you wish to make use of the Standard ML Basis Library
+in your projects, this option should be turned on, unless
+you wish to import the Basis Library manually in your
+projects.
+.IP "\fB--inline_functors\fR" 4
+.IX Item "--inline_functors"
+Inline functors during static interpretation instead of
+generating separate target code blocks for functor bodies
+and arguments. With the flag enabled, performance may
+increase with the cost of larger (re)compilation times.
+The flag may be controlled in mlb-files using mlb-
+annotations.
+.IP "\fB--inline_names S\fR" 4
+.IX Item "--inline_names S"
+Names of functions that should always be inlined
+if possible, no matter the setting of the flag
+--maximum_inline_size.
+.IP "\fB--link_code S\fR" 4
+.IX Item "--link_code S"
+Link-files to be linked together to form an
+executable.
+.IP "\fB--link_time_dead_code_elimination, -ltdce\fR" 4
+.IX Item "--link_time_dead_code_elimination, -ltdce"
+Link time dead code elimination.
+.IP "\fB--load_basis_files S, -load S\fR" 4
+.IX Item "--load_basis_files S, -load S"
+Basis files to be loaded before compilation
+proper.
+.IP "\fB--log_to_file\fR" 4
+.IX Item "--log_to_file"
+Log to files instead of stdout.
+.IP "\fB--man\fR" 4
+.IX Item "--man"
+Print man-page and exit.
+.IP "\fB--maximum_inline_size N, -max_inl_sz N\fR" 4
+.IX Item "--maximum_inline_size N, -max_inl_sz N"
+Functions smaller than this size (counted in abstract
+syntax tree nodes) are inlined, even if they are used
+more than once. Functions that are used only once are
+always inlined. A function declared in one program unit
+may be inlined when applied in another program unit
+provided the function is sufficiently closed (refers only
+to exported identifiers) and provided the option
+--cross_opt is enabled.
+.IP "\fB--maximum_specialise_size N, -max_spec_sz N\fR" 4
+.IX Item "--maximum_specialise_size N, -max_spec_sz N"
+Function-parameterised functions smaller than this size
+(counted in abstract syntax tree nodes) are specialised if
+all applications of the function within its own body are
+applied to its formal function argument, even if they are used
+more than once. Functions that are used only once are
+specialised no matter their size. A function declared in
+one program unit may be specialised when applied in
+another program unit provided the function is sufficiently
+closed (refers only to exported identifiers) and provided
+the option --cross_opt is enabled. See also the option
+--specialize_recursive_functions.
+.IP "\fB--messages\fR" 4
+.IX Item "--messages"
+Print messages about reading source files and generating
+target files.
+.IP "\fB--minimize_fixs\fR" 4
+.IX Item "--minimize_fixs"
+Minimize fix constructs (Lambda Expression Optimiser).
+.IP "\fB--mlb_path_maps S, -mlb-path-map S\fR" 4
+.IX Item "--mlb_path_maps S, -mlb-path-map S"
+ML Basis path map files to be used.
+.IP "\fB--namebase S\fR" 4
+.IX Item "--namebase S"
+Name base to enforce unique names when compiling
+mlb-files.
+.IP "\fB--no_aggressive_opt, -no_aopt\fR" 4
+.IX Item "--no_aggressive_opt, -no_aopt"
+Opposite of --aggressive_opt, -aopt.
+.IP "\fB--no_constant_folding, -no_cfold\fR" 4
+.IX Item "--no_constant_folding, -no_cfold"
+Opposite of --constant_folding, -cfold.
+.IP "\fB--no_contract\fR" 4
+.IX Item "--no_contract"
+Opposite of --contract.
+.IP "\fB--no_cross_module_opt, -no_cross_opt\fR" 4
+.IX Item "--no_cross_module_opt, -no_cross_opt"
+Opposite of --cross_module_opt, -cross_opt.
+.IP "\fB--no_drop_unused_funargs, -no_dufa\fR" 4
+.IX Item "--no_drop_unused_funargs, -no_dufa"
+Opposite of --drop_unused_funargs, -dufa.
+.IP "\fB--no_eliminate_explicit_records\fR" 4
+.IX Item "--no_eliminate_explicit_records"
+Opposite of --eliminate_explicit_records.
+.IP "\fB--no_eliminate_polymorphic_equality\fR" 4
+.IX Item "--no_eliminate_polymorphic_equality"
+Opposite of --eliminate_polymorphic_equality.
+.IP "\fB--no_fix_floating\fR" 4
+.IX Item "--no_fix_floating"
+Opposite of --fix_floating.
+.IP "\fB--no_import_basislib, -no_basislib\fR" 4
+.IX Item "--no_import_basislib, -no_basislib"
+Opposite of --import_basislib, -basislib.
+.IP "\fB--no_link_time_dead_code_elimination, -no_ltdce\fR" 4
+.IX Item "--no_link_time_dead_code_elimination, -no_ltdce"
+Opposite of --link_time_dead_code_elimination, -ltdce.
+.IP "\fB--no_messages\fR" 4
+.IX Item "--no_messages"
+Opposite of --messages.
+.IP "\fB--no_minimize_fixs\fR" 4
+.IX Item "--no_minimize_fixs"
+Opposite of --minimize_fixs.
+.IP "\fB--no_optimiser, -no_opt\fR" 4
+.IX Item "--no_optimiser, -no_opt"
+Opposite of --optimiser, -opt.
+.IP "\fB--no_raggedRight\fR" 4
+.IX Item "--no_raggedRight"
+Opposite of --raggedRight.
+.IP "\fB--no_specialize_recursive_functions\fR" 4
+.IX Item "--no_specialize_recursive_functions"
+Opposite of --specialize_recursive_functions.
+.IP "\fB--no_type_check_lambda\fR" 4
+.IX Item "--no_type_check_lambda"
+Opposite of --type_check_lambda.
+.IP "\fB--no_unbox_funargs\fR" 4
+.IX Item "--no_unbox_funargs"
+Opposite of --unbox_funargs.
+.IP "\fB--no_uncurrying, -no_uncurry\fR" 4
+.IX Item "--no_uncurrying, -no_uncurry"
+Opposite of --uncurrying, -uncurry.
+.IP "\fB--optimiser, -opt\fR" 4
+.IX Item "--optimiser, -opt"
+Enable optimisation of intermediate language code
+(Lambda Expressions). Which optimisations are performed
+is controlled by individual flags. The optimisations
+include function inlining, function specialisation,
+fix-minimization, unboxing of function arguments, and
+elimination of unnecessary record constructions.
+.IP "\fB--output S, -o S\fR" 4
+.IX Item "--output S, -o S"
+The name of the executable file generated by
+the Kit.
+.IP "\fB--parallel_compilation N, -j N\fR" 4
+.IX Item "--parallel_compilation N, -j N"
+The maximum number of parallel processes used
+for compilation.
+.IP "\fB--pretty_depth N\fR" 4
+.IX Item "--pretty_depth N"
+This flag controls the pretty-printing depth of
+values printed in the REPL. The value must be an
+integer larger than zero.
+.IP "\fB--pretty_string_size N\fR" 4
+.IX Item "--pretty_string_size N"
+This flag controls the pretty-printing size of
+strings printed in the REPL. The value must be an
+integer larger than zero.
+.IP "\fB--print_closed_export_bases, -Pceb\fR" 4
+.IX Item "--print_closed_export_bases, -Pceb"
+Controls printing of closed export bases.
+.IP "\fB--print_excon_name\fR" 4
+.IX Item "--print_excon_name"
+Print underlying unique name when printing excons.
+.IP "\fB--print_export_bases, -Peb\fR" 4
+.IX Item "--print_export_bases, -Peb"
+Controls printing of export bases.
+.IP "\fB--print_lvar_name\fR" 4
+.IX Item "--print_lvar_name"
+Print underlying unique name when printing lvars.
+.IP "\fB--print_opt_lambda_expression, -Pole\fR" 4
+.IX Item "--print_opt_lambda_expression, -Pole"
+Print Lambda Expression after optimisation.
+.IP "\fB--print_post_elab_ast, -Ppeast\fR" 4
+.IX Item "--print_post_elab_ast, -Ppeast"
+Print ast after elaboration.
+.IP "\fB--print_type_name_stamps, -Ptypestamps\fR" 4
+.IX Item "--print_type_name_stamps, -Ptypestamps"
+Print type name stamps and their attributes in types
+and expressions.
+.IP "\fB--print_types, -Ptypes\fR" 4
+.IX Item "--print_types, -Ptypes"
+Print types when printing intermediate forms. For Lambda
+Expressions, ordinary ML types are printed, whereas for
+Region Expressions, region types are printed.
+.IP "\fB--quotation, -quot\fR" 4
+.IX Item "--quotation, -quot"
+Enable support for quotations and anti-quotations.
+When enabled, the datatype
+   datatype 'a frag = QUOTE of string
+                    | ANTIQUOTE 'a
+is available in the initial environment. Moreover,
+values of this datatype may be constructed using
+the quotation/antiquotation syntax:
+   val s = "world" 
+   val a : string frag list = `hello ^s - goodbye`
+.IP "\fB--raggedRight\fR" 4
+.IX Item "--raggedRight"
+Use ragged right margin in pretty-printing of
+expressions and types.
+.IP "\fB--recompile_basislib, -scratch\fR" 4
+.IX Item "--recompile_basislib, -scratch"
+Recompile basis library from scratch. This option
+is useful together with other options that control
+code generation.
+.IP "\fB--report_file_sig, -sig\fR" 4
+.IX Item "--report_file_sig, -sig"
+Report signatures for each file read.
+.IP "\fB--safeLinkTimeElimination\fR" 4
+.IX Item "--safeLinkTimeElimination"
+Treat this module as a library in the sense that
+the code can be eliminated if it is not used,
+even if the code has side effects.
+.IP "\fB--specialize_recursive_functions\fR" 4
+.IX Item "--specialize_recursive_functions"
+Specialise recursive functions. Use the option
+maximum_specialise_size to control which functions
+are specialised. If this flag is on, functions that are
+applied only once are specialised, no matter the setting
+of --maximum_specialise_size (Lambda Expression Optimiser).
+.IP "\fB--statistics_after_optimisation, -stats_opt\fR" 4
+.IX Item "--statistics_after_optimisation, -stats_opt"
+Report optimisation statistics after optimisation of
+Lambda Expression.
+.IP "\fB--type_check_lambda\fR" 4
+.IX Item "--type_check_lambda"
+Type check lambda expression prior to performing region
+inference. Type checking is very fast and for normal use
+you should not disable this option. Type checking
+intermediate forms is very powerful for eliminating bugs
+in the compiler.
+.IP "\fB--unbox_funargs\fR" 4
+.IX Item "--unbox_funargs"
+Unbox arguments to fix-bound functions, for which the
+argument 'a' is used only in contexts '#i a'. All call 
+sites are transformed to match the new function (Lambda
+Expression Optimiser).
+.IP "\fB--uncurrying, -uncurry\fR" 4
+.IX Item "--uncurrying, -uncurry"
+Enable uncurrying of curried functions. The uncurried
+function takes its arguments unboxed in registers or
+on the stack. For partial applications and non-
+application uses of the function, appropriate eta-
+expansions are applied.
+.IP "\fB--version, -v, -V\fR" 4
+.IX Item "--version, -v, -V"
+Print version information and exit.
+.IP "\fB--width N, -w N\fR" 4
+.IX Item "--width N, -w N"
+Column width used when pretty printing intermediate code.
+.SH EXIT STATUS
+Exits with status 0 on success and -1 on failure.
+.SH ENVIRONMENT
+A library install directory must be provided in an environment variable SML_LIB, as a path-definition in the user's personal path-map ~/.barry/mlb-path-map, or in a system wide path-map /home/skye/Research/3cps/mlkit-frontend/vendor/mlkit/../mlkit-install/etc/barry/mlb-path-map.
+.SH FILES
+.IP /home/skye/Research/3cps/mlkit-frontend/vendor/mlkit/../mlkit-install/etc/barry/mlb-path-map
+System-wide configuration of library and runtime system locations
+.IP ~/.barry/mlb-path-map
+User specific configuration of library and runtime system locations
+.SH CREDITS
+The MLKit (version 2 and beyond) was developed by Lars Birkedal, Martin Elsman, Niels Hallenberg, Tommy H. Olesen, Mads Tofte,  and Carsten Varming. People who have contributed with bug-fixes and improvements include Peter Bertelsen, Vesa Karvonen, Ken Friis Larsen, Henning Niss, Peter Sestoft,  and Troels Henriksen. Nick Rothwell and David N. Turner took part in the development of the MLKit version 1.
+.SH SEE ALSO
+See the MLKit manual "Programming with Regions in the MLKit", available from the MLKit home page
+
+.B http://melsman.github.io/mlkit
+
+for an in-depth introduction to programming with regions in the MLKit.
+
+The home page also provides an overview of which parts of the Standard ML Basis Library the MLKit implements, along with download and installation instructions.
