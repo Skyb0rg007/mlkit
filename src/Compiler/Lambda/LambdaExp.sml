@@ -580,12 +580,19 @@ structure LambdaExp : LAMBDA_EXP =
    fun pr_lvar lv = if !barify_p then barify_catch_basislib (Lvars.str lv,#2(Lvars.key lv),Lvars.pr_lvar' lv)
                     else Lvars.pr_lvar lv
 
+   (* A constructor or exception of the initial basis (IntInf, say) is printed
+    * without its key, which changes whenever the initial basis does, so that
+    * code written against Barry's output can name it.  Their source names are
+    * unique within the initial basis. *)
+   fun initial_name n = #2 (Name.key n) = "CompilerInitial"
+
    fun pr_excon ex =
        if !barify_p then
          if member Excon.eq ex [Excon.ex_DIV,Excon.ex_MATCH,Excon.ex_BIND,
                                 Excon.ex_OVERFLOW,Excon.ex_INTERRUPT,
                                 Excon.ex_SUBSCRIPT,Excon.ex_SIZE]
                then Excon.pr_excon ex
+         else if initial_name (Excon.name ex) then unsymb (Excon.str ex) ^ "CompilerInitial"
          else barify_catch_basislib (Excon.str ex,#2(Name.key(Excon.name ex)),Excon.pr_excon' ex)
        else Excon.pr_excon ex
 
@@ -594,6 +601,7 @@ structure LambdaExp : LAMBDA_EXP =
            if Con.eq(c,Con.con_CONS) then "op ::"
            else if member Con.eq c [Con.con_NIL,Con.con_FALSE,Con.con_TRUE]
                     then Con.pr_con c
+                else if initial_name (Con.name c) then unsymb (Con.str c) ^ "CompilerInitial"
                 else barify_catch_basislib (Con.str c,#2(Name.key(Con.name c)),Con.pr_con' c)
        else Con.pr_con c
 
