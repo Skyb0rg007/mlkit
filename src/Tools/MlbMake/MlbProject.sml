@@ -167,6 +167,10 @@ struct
       | "basis" => true
       | "scriptpath" => true
       | "ann" => true
+      | "structure" => true
+      | "signature" => true
+      | "functor" => true
+      | "and" => true
       | _ => false
 
   local
@@ -224,6 +228,29 @@ struct
           | c :: cc => inLit strs (c::cs) cc
       in
         inLit [] [] (explode s)
+      end
+
+  (* A `structure`, `signature` or `functor` declaration names what a basis
+   * exports.  The compilation manager has no way to hide part of what a source
+   * file binds, so a `local` whose body has such a declaration exports all of
+   * what its first part binds.  A program that MLton accepts can be affected
+   * only if a name that it hides shadows an earlier binding that is used
+   * later.  A renaming would need a binding of its own, which we don't have. *)
+  val exports_seen = ref false
+
+  fun parse_exports mlbfile ss =
+      let fun more ss =
+              case ss of
+                "and" :: ss => parse_exports mlbfile ss
+              | _ => ss
+      in case ss of
+           id :: "=" :: id' :: ss =>
+           if id = id' then more ss
+           else parse_error1 mlbfile ("renaming " ^ id' ^ " to " ^ id ^ " is not supported", ss)
+         | id :: ss =>
+           if is_keyword id then parse_error1 mlbfile ("missing identifier", id :: ss)
+           else more ss
+         | nil => parse_error1 mlbfile ("missing identifier", ss)
       end
 
   fun parse_bdec_more mlbfile (bdec,ss) =
@@ -284,14 +311,21 @@ struct
       case ss of
         "local" :: ss =>
         let
+          val outer_exports_seen = !exports_seen
           fun parse_rest'(bdec,bdec',ss) =
               case ss of
-                "end" :: ss => parse_bdec_more mlbfile (MS.LOCALbdec(bdec,bdec'),ss)
+                "end" :: ss =>
+                let val b = if !exports_seen then MS.SEQbdec(bdec,bdec')
+                            else MS.LOCALbdec(bdec,bdec')
+                in exports_seen := outer_exports_seen;
+                   parse_bdec_more mlbfile (b,ss)
+                end
               | _ => parse_error1 mlbfile ("I expect an 'end'", ss)
           fun parse_rest(bdec,ss) =
               case ss of
                 "in" :: ss =>
-                (case parse_bdec_opt mlbfile ss of
+                (exports_seen := false;
+                 case parse_bdec_opt mlbfile ss of
                    NONE => parse_rest'(bdec,MS.EMPTYbdec,ss)
                  | SOME(bdec',ss) => parse_rest'(bdec,bdec',ss))
               | _ => parse_error1 mlbfile ("I expect an 'in'", ss)
@@ -346,7 +380,10 @@ struct
              (anns,ss) => parse_rest(anns,ss)
         end
       | s :: ss =>
-        if is_smlfile s then parse_bdec_more mlbfile (MS.ATBDECbdec (expand mlbfile s),ss)
+        if s = "structure" orelse s = "signature" orelse s = "functor" then
+          (exports_seen := true;
+           parse_bdec_more mlbfile (MS.EMPTYbdec, parse_exports mlbfile ss))
+        else if is_smlfile s then parse_bdec_more mlbfile (MS.ATBDECbdec (expand mlbfile s),ss)
         else
           if is_mlbfile s then
             let val mlbfile2 = expand mlbfile s

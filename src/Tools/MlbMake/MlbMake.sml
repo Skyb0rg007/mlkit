@@ -161,11 +161,22 @@ struct
             val deps = readDependencies smlfile
             val basisFiles = map ebFileFromSmlFile deps
             val chars = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
+            (* Two source files of one mlb-file can have the same name in
+             * different directories, and each must get a base of its own, or
+             * the names they generate collide.  An absolute path is taken
+             * relative to the mlb-file, so that the base doesn't depend on
+             * where the sources are. *)
+            val smlfile_id =
+                if OS.Path.isAbsolute smlfile
+                then OS.Path.mkRelative
+                         {path = smlfile,
+                          relativeTo = OS.Path.mkAbsolute
+                                           {path = OS.Path.dir mlbfile,
+                                            relativeTo = OS.FileSys.getDir()}}
+                else smlfile
             val hash = MD5.fromStringP chars (mlbhash ^ "-" ^
                                               OS.Path.file mlbfile ^ "-" ^
-                                              (if OS.Path.isAbsolute smlfile
-                                               then OS.Path.file smlfile
-                                               else smlfile))
+                                              smlfile_id)
             val hash = if size hash > 0 andalso Char.isDigit (String.sub(hash,0))
                        then "h" ^ hash (* make sure namebase does not start with a digit *)
                        else hash
