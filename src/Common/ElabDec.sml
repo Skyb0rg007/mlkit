@@ -2026,15 +2026,14 @@ let
     let val ts = StatObject.TyVar.resolve_overloaded tv
       open TyName
     in
-      if Set.member tyName_INT32 ts then
-          if Set.member tyName_INT31 ts then
-            Type.IntDefault()
-          else Type.Int32
+      (* the default comes first: the type names that a large literal leaves in
+       * the set depend on its size, and a literal that fits in the default type
+       * has that type, whatever the width of the default *)
+      if Set.member (tyName_IntDefault()) ts then Type.IntDefault()
+      else if Set.member tyName_INT32 ts then Type.Int32
       else
-        if Set.member tyName_WORD32 ts then
-          if Set.member tyName_WORD31 ts then
-            Type.WordDefault()
-          else Type.Word32
+        if Set.member (tyName_WordDefault()) ts then Type.WordDefault()
+        else if Set.member tyName_WORD32 ts then Type.Word32
         else if Set.member tyName_REAL ts then Type.Real
         else Crash.impossible ("resolve_tv.hmm; maybe insert cases for string, etc; ts = {"
                                ^ String.concatWith "," (map pr_TyName (Set.list ts)) ^ "}")
