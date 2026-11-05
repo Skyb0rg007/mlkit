@@ -557,7 +557,10 @@ structure LambdaExp : LAMBDA_EXP =
      let val do_unsymb = List.filter (not o is_symb)
      in
        if String.size s < 1 then s
-       else if is_symb (CharVector.sub(s,0)) then implode(#"v" :: do_unsymb (explode s))
+       (* a digit comes first in the name of a join point that the match
+        * compiler names after a constant *)
+       else if is_symb (CharVector.sub(s,0)) orelse Char.isDigit (CharVector.sub(s,0))
+       then implode(#"v" :: do_unsymb (explode s))
             else implode(do_unsymb(explode s))
      end
 
@@ -1238,7 +1241,13 @@ structure LambdaExp : LAMBDA_EXP =
           let fun pr_exc (e,NONE) = pr_excon e
                 | pr_exc (e,SOME lv) = if !barify_p then pr_excon e ^ " " ^ pr_lvar lv
                                        else pr_excon e
-          in layoutSwitch layoutLambdaExp pr_exc sw
+              (* Rows for two names of one exception (exception B = A) print
+               * alike, which is a redundant match; the first one wins. *)
+              fun distinct [] = []
+                | distinct ((rule as ((e,_),_)) :: rules) =
+                  rule :: distinct (List.filter (fn ((e',_),_) => not (Excon.eq (e,e'))) rules)
+              fun distinct_sw (SWITCH (lamb,rules,def)) = SWITCH (lamb,distinct rules,def)
+          in layoutSwitch layoutLambdaExp pr_exc (if !barify_p then distinct_sw sw else sw)
           end
       | TYPED (lamb,tau,cs) =>
           PP.NODE{start="",
@@ -1638,7 +1647,25 @@ structure LambdaExp : LAMBDA_EXP =
                   children=map (PP.LEAF o RegVar.pr) regvars}
 
       and mk_mutual_binding (functions) =
-        let fun mk_fix({lvar,regvars,tyvars,Type,constrs,bind as (FN{pat, body, ...})})
+        let (* A type variable is implicitly bound at the innermost declaration
+             * that mentions it, so one that the parameters of these functions
+             * don't mention, but that an annotation in their bodies does, would
+             * be bound there, inside the scope that it belongs to.  Barry binds
+             * such a type variable here explicitly. *)
+            val explicit_tyvars =
+                if not (!barify_p) then ""
+                else
+                  let fun formals {bind = FN{pat, ...}, ...} = map #2 pat
+                        | formals _ = nil
+                      val mentioned = List.concat (map tyvars (List.concat (map formals functions)))
+                      val bound = List.concat (map #tyvars functions)
+                      val tvs = List.filter (fn tv => not (List.exists (fn tv' => tv = tv') mentioned)) bound
+                  in case tvs of
+                         nil => ""
+                       | [tv] => " " ^ pr_tyvar tv
+                       | _ => " (" ^ String.concatWith "," (map pr_tyvar tvs) ^ ")"
+                  end
+            fun mk_fix({lvar,regvars,tyvars,Type,constrs,bind as (FN{pat, body, ...})})
                      (no, rest_of_mutual_binding) =
               (*
                    fun f  : sigma
@@ -1658,7 +1685,7 @@ structure LambdaExp : LAMBDA_EXP =
               *)
               (no-1,
                    let
-                     val keyword = if no = 1 then "fun" else "and"
+                     val keyword = if no = 1 then "fun" ^ explicit_tyvars else "and"
                      val s_regvars =
                          case regvars of
                              nil => ""
@@ -1868,8 +1895,71 @@ structure LambdaExp : LAMBDA_EXP =
         end
     end
 
+    (* A refutable binding at the top level of a unit, like `val SOME x = e`, is
+     * a switch with the rest of the unit in one of its branches, but the rest
+     * of the unit has to end the unit's `local ... in ... end`, which can't go
+     * inside a `case`.  So Barry makes the test a declaration of its own,
+     * followed by the rest of the unit, where the deconstructions that bind the
+     * variables are not in a rule and print a `case` of their own. *)
+    local
+      (* the type of the switch's constants differs from one kind of switch to
+       * another, so these can't be in the recursion on expressions *)
+      fun switchHasFrame hasFrame (SWITCH (_, arms, def)) =
+          List.exists (hasFrame o #2) arms orelse
+          (case def of SOME e => hasFrame e | NONE => false)
+      fun separate hasFrame walk wrap lamb (sw as SWITCH (e, arms, def)) =
+          if not (switchHasFrame hasFrame sw) then lamb
+          else
+            let val rest = ref NONE
+                fun test b =
+                    if hasFrame b
+                    then (rest := SOME b; PRIM (RECORDprim {regvar = NONE}, []))
+                    else b
+                val arms = map (fn (c, b) => (c, test b)) arms
+                val def = Option.map test def
+            in case !rest of
+                   SOME b => LET {pat = [], bind = wrap (SWITCH (e, arms, def)), scope = walk b}
+                 | NONE => die "separate_top_switches"
+            end
+    in
+    fun separate_top_switches lamb =
+        let
+          fun hasFrame lamb =
+              case lamb of
+                  LET {scope, ...} => hasFrame scope
+                | FIX {scope, ...} => hasFrame scope
+                | EXCEPTION (_, _, scope) => hasFrame scope
+                | LETREGION {scope, ...} => hasFrame scope
+                | FRAME _ => true
+                | SWITCH_I {switch, ...} => switchHasFrame hasFrame switch
+                | SWITCH_W {switch, ...} => switchHasFrame hasFrame switch
+                | SWITCH_S switch => switchHasFrame hasFrame switch
+                | SWITCH_C switch => switchHasFrame hasFrame switch
+                | SWITCH_E switch => switchHasFrame hasFrame switch
+                | _ => false
+          fun walk lamb =
+              case lamb of
+                  LET {pat, bind, scope} => LET {pat = pat, bind = bind, scope = walk scope}
+                | FIX {functions, scope} => FIX {functions = functions, scope = walk scope}
+                | EXCEPTION (exc, tau, scope) => EXCEPTION (exc, tau, walk scope)
+                | LETREGION {regvars, scope} => LETREGION {regvars = regvars, scope = walk scope}
+                | SWITCH_I {switch, precision} =>
+                  separate hasFrame walk (fn sw => SWITCH_I {switch = sw, precision = precision})
+                           lamb switch
+                | SWITCH_W {switch, precision, tyname} =>
+                  separate hasFrame walk (fn sw => SWITCH_W {switch = sw, precision = precision,
+                                                             tyname = tyname})
+                           lamb switch
+                | SWITCH_S sw => separate hasFrame walk SWITCH_S lamb sw
+                | SWITCH_C sw => separate hasFrame walk SWITCH_C lamb sw
+                | SWITCH_E sw => separate hasFrame walk SWITCH_E lamb sw
+                | _ => lamb
+        in walk lamb
+        end
+    end
+
     fun barify (PGM (dbs, lamb)) =
-        let val a = PGM (dbs, lift_local_exceptions lamb)
+        let val a = PGM (dbs, separate_top_switches (lift_local_exceptions lamb))
             val base = Name.baseGet()
             (* Lvars.pr_lvar' and friends leave a name's base out when it is the
              * base of the unit being compiled.  Barry prints a name in every unit

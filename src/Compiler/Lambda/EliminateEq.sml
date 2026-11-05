@@ -452,6 +452,24 @@ structure EliminateEq : ELIMINATE_EQ =
      * of mutually recursive datatype bindings. *)
     fun gen_datatype_eq_dbs env0 dbs = (* may raise DONT_SUPPORT_EQ *)
       let
+        (* The functions of a group call each other monomorphically, so the
+         * datatypes must have one list of type variables, not just the same
+         * number of them. *)
+        val dbs =
+            case dbs of
+                [] => []
+              | (tyvars0,_,_) :: _ =>
+                let fun same (db as (tyvars,tn,cbs)) =
+                        if length tyvars <> length tyvars0 then db
+                        else
+                          let val S = LambdaBasics.mk_subst (fn () => "EliminateEq.same")
+                                        (tyvars, map (fn tv => TYVARtype {tv=tv}) tyvars0)
+                          in (tyvars0, tn,
+                              map (fn (c,tau) => (c, Option.map (LambdaBasics.on_Type S) tau)) cbs)
+                          end
+                in map same dbs
+                end
+
         (* First create a monomorphic environment for tynames in dbs.
          * If a tyname does not admit equality then don't introduce it. *)
         fun mono_env [] env = env

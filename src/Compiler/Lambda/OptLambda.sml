@@ -1490,9 +1490,14 @@ structure OptLambda : OPT_LAMBDA =
                   case selector arg of
                       SOME sel_eq =>
                       let val (e, others) = searchSel sel_eq sel opt
-                      in tick "reduce - switch constant fold";
-                         app decr_uses others;
-                         reduce (env, (e, cv))
+                      in case e of
+                             (* The failure of a val pattern has no type of
+                              * its own: it gets one from the other branches *)
+                             RAISE (_, RaisedExnBind) => fail
+                           | _ =>
+                             (tick "reduce - switch constant fold";
+                              app decr_uses others;
+                              reduce (env, (e, cv)))
                       end
                     | NONE => fail
                 else fail
