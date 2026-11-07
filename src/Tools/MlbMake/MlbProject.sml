@@ -233,17 +233,19 @@ struct
   (* A `structure` or `signature` declaration is a generated source file that
    * binds the name, so that a `local` hides all else, renames work, and a file
    * can be compiled as usual.  SML has no way to rebind a functor, so a `local`
-   * that exports one (see hide_imports) leaves its own sources visible. *)
+   * that exports one is done otherwise (see restore_outer). *)
   val functor_seen = ref false
   val rename_count = ref 0
 
-  fun rename_file mlbfile (kind, id, id') =
+  (* the bindings of an `and` chain are simultaneous, so they go in one file *)
+  fun rename_file mlbfile (kind, binds) =
       let val () = rename_count := !rename_count + 1
           val base = OS.Path.base (OS.Path.file mlbfile)
           val file = OS.Path.concat ("MLB", base ^ "-rename" ^ Int.toString (!rename_count) ^ ".sml")
           val dir = OS.Path.dir mlbfile
           val path = if dir = "" then file else OS.Path.concat (dir, file)
-          val text = kind ^ " " ^ id ^ " = " ^ id' ^ "\n"
+          val text = kind ^ " " ^
+                     String.concatWith " and " (map (fn (id, id') => id ^ " = " ^ id') binds) ^ "\n"
           val unchanged = (MlbFileSys.fromFile path = text) handle _ => false
           fun write () =
               let val () = (OS.FileSys.mkDir (OS.Path.dir path)) handle OS.SysErr _ => ()
@@ -255,39 +257,71 @@ struct
       end
 
   fun parse_exports mlbfile kind ss =
-      let fun more (bdec, ss) =
+      let fun bind ss =
               case ss of
-                "and" :: ss =>
-                let val (bdec', ss) = parse_exports mlbfile kind ss
-                in (MS.SEQbdec (bdec, bdec'), ss)
-                end
-              | _ => (bdec, ss)
-      in case ss of
-           id :: "=" :: id' :: ss =>
-           if kind <> "functor" then more (rename_file mlbfile (kind, id, id'), ss)
-           else if id = id' then (functor_seen := true; more (MS.EMPTYbdec, ss))
-           else parse_error1 mlbfile ("renaming the functor " ^ id' ^ " to " ^ id ^ " is not supported", ss)
-         | id :: ss =>
-           if is_keyword id then parse_error1 mlbfile ("missing identifier", id :: ss)
-           else if kind <> "functor" then more (rename_file mlbfile (kind, id, id), ss)
-           else (functor_seen := true; more (MS.EMPTYbdec, ss))
-         | nil => parse_error1 mlbfile ("missing identifier", ss)
+                id :: "=" :: id' :: ss => ((id, id'), ss)
+              | id :: ss =>
+                if is_keyword id then parse_error1 mlbfile ("missing identifier", id :: ss)
+                else ((id, id), ss)
+              | nil => parse_error1 mlbfile ("missing identifier", ss)
+          fun chain (binds, ss) =
+              let val (b, ss) = bind ss
+              in case ss of
+                   "and" :: ss => chain (b :: binds, ss)
+                 | _ => (rev (b :: binds), ss)
+              end
+          val (binds, ss) = chain ([], ss)
+          fun functor_bind (id, id') =
+              if id = id' then ()
+              else parse_error1 mlbfile ("renaming the functor " ^ id' ^ " to " ^ id ^ " is not supported", ss)
+      in if kind <> "functor" then (rename_file mlbfile (kind, binds), ss)
+         else (app functor_bind binds; functor_seen := true; (MS.EMPTYbdec, ss))
       end
 
-  (* `local imports sources in body end`, for a body that exports a functor:
-   * the mlb-files that the `local` starts with stay hidden, unless it has no
-   * sources, when the functor must come from them. *)
-  fun hide_imports (bdec, body) =
+  (* `local imports in body end`, for a body that exports a functor, leaves
+   * the imports visible, and restore_outer then binds again the names that
+   * they shadow, with the declarations that come before it in its sequence,
+   * and then those of the body:
+   *
+   *    D1 local A in structure S functor F end D2
+   *    ==> basis Outer = bas D1 end open Outer A
+   *        basis Exports = bas structure S end open Outer open Exports D2
+   *
+   * The annotation marks such a `local` until then.  A functor of D1 with the
+   * name of the one exported hides it. *)
+  val leak_ann = "barry: a local that exports a functor"
+  val outer_count = ref 0
+
+  fun restore_outer bdec =
       let fun flatten (MS.SEQbdec (a, b)) = flatten a @ flatten b
             | flatten MS.EMPTYbdec = []
             | flatten b = [b]
           fun seq bs = foldr (fn (b, MS.EMPTYbdec) => b | (b, r) => MS.SEQbdec (b, r)) MS.EMPTYbdec bs
-          fun split (imports, (b as MS.MLBFILEbdec _) :: bs) = split (b :: imports, bs)
-            | split (imports, bs) = (rev imports, bs)
-          val (imports, sources) = split ([], flatten bdec)
-      in case sources of
-           [] => MS.SEQbdec (bdec, body)
-         | _ => MS.LOCALbdec (seq imports, MS.SEQbdec (seq sources, body))
+          fun one b =
+              case b of
+                MS.LOCALbdec (a, b) => MS.LOCALbdec (restore_outer a, restore_outer b)
+              | MS.ANNbdec (ann, b) => MS.ANNbdec (ann, restore_outer b)
+              | MS.BASISbdec (bid, e) => MS.BASISbdec (bid, bexp e)
+              | b => b
+          and bexp (MS.BASbexp {bdec}) = MS.BASbexp {bdec = restore_outer bdec}
+            | bexp (MS.LETbexp (b, e)) = MS.LETbexp (restore_outer b, bexp e)
+            | bexp e = e
+          fun go (prefix, []) = seq (rev prefix)
+            | go (prefix, (b as MS.ANNbdec (ann, MS.LOCALbdec (imports, body))) :: rest) =
+              if ann <> leak_ann then go (one b :: prefix, rest)
+              else
+                let val () = outer_count := !outer_count + 1
+                    fun basis name = MS.Bid.bid ("Barry" ^ name ^ Int.toString (!outer_count))
+                    fun open' bid = MS.OPENbdec [MS.Bid.longbid [bid]]
+                    val outer = basis "Outer"
+                    val exports = basis "Exports"
+                in go ([open' exports, open' outer,
+                        MS.BASISbdec (exports, MS.BASbexp {bdec = restore_outer body}),
+                        restore_outer imports, open' outer,
+                        MS.BASISbdec (outer, MS.BASbexp {bdec = seq (rev prefix)})], rest)
+                end
+            | go (prefix, b :: rest) = go (one b :: prefix, rest)
+      in go ([], flatten bdec)
       end
 
   fun parse_bdec_more mlbfile (bdec,ss) =
@@ -352,9 +386,10 @@ struct
           fun parse_rest'(bdec,bdec',ss) =
               case ss of
                 "end" :: ss =>
-                let val b = if !functor_seen then hide_imports (bdec,bdec')
+                let val b = if !functor_seen then MS.ANNbdec (leak_ann, MS.LOCALbdec (bdec,bdec'))
                             else MS.LOCALbdec(bdec,bdec')
-                in functor_seen := outer_functor_seen;
+                in (* a local that exports a functor makes its context export one *)
+                   functor_seen := (outer_functor_seen orelse !functor_seen);
                    parse_bdec_more mlbfile (b,ss)
                 end
               | _ => parse_error1 mlbfile ("I expect an 'end'", ss)
@@ -445,7 +480,7 @@ struct
         (* val _ = print_ss ss *)
           val bdec =
               case parse_bdec_opt mlbfile ss of
-                SOME (bdec,nil) => bdec
+                SOME (bdec,nil) => restore_outer bdec
               | SOME (bdec,ss) => parse_error1 mlbfile ("misformed basis declaration", ss)
               | NONE => MS.EMPTYbdec
         in (* print ("Successfully parsed " ^ mlbfile ^ "\n"); *)

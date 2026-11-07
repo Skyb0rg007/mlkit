@@ -691,9 +691,8 @@ structure LambdaExp : LAMBDA_EXP =
       | CCALLprim{name="__neg_int63",...} => PP.LEAF("~" )
       | CCALLprim{name="__neg_int64ub",...} => PP.LEAF("~" )
       | CCALLprim{name="__neg_real",...} => PP.LEAF("~" )
-      (* see layout_abs *)
-      | CCALLprim{name="__abs_int31",...} => layout_abs "__abs_int31"
-      | CCALLprim{name="__abs_int32ub",...} => layout_abs "__abs_int32ub"
+      (* see layout_abs; at int31 and int32ub, abs is Prim's, which raises
+       * Overflow at the most negative number as Core ML's ~ cannot *)
       | CCALLprim{name="__abs_int63",...} => layout_abs "__abs_int63"
       | CCALLprim{name="__abs_int64ub",...} => layout_abs "__abs_int64ub"
       | CCALLprim{name="__abs_real",...} => layout_abs "__abs_real"
@@ -1930,7 +1929,9 @@ structure LambdaExp : LAMBDA_EXP =
     end
 
     fun barify (PGM (dbs, lamb)) =
-        let val a = PGM (dbs, separate_top_switches (lift_local_exceptions lamb))
+        let (* the rest of a unit after a refutable binding is in a switch until
+             * it is separated, and its exceptions are at the top level *)
+            val a = PGM (dbs, lift_local_exceptions (separate_top_switches lamb))
             val base = Name.baseGet()
             (* Lvars.pr_lvar' and friends leave a name's base out when it is the
              * base of the unit being compiled.  Barry prints a name in every unit
