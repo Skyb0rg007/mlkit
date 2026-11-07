@@ -230,27 +230,64 @@ struct
         inLit [] [] (explode s)
       end
 
-  (* A `structure`, `signature` or `functor` declaration names what a basis
-   * exports.  The compilation manager has no way to hide part of what a source
-   * file binds, so a `local` whose body has such a declaration exports all of
-   * what its first part binds.  A program that MLton accepts can be affected
-   * only if a name that it hides shadows an earlier binding that is used
-   * later.  A renaming would need a binding of its own, which we don't have. *)
-  val exports_seen = ref false
+  (* A `structure` or `signature` declaration is a generated source file that
+   * binds the name, so that a `local` hides all else, renames work, and a file
+   * can be compiled as usual.  SML has no way to rebind a functor, so a `local`
+   * that exports one (see hide_imports) leaves its own sources visible. *)
+  val functor_seen = ref false
+  val rename_count = ref 0
 
-  fun parse_exports mlbfile ss =
-      let fun more ss =
+  fun rename_file mlbfile (kind, id, id') =
+      let val () = rename_count := !rename_count + 1
+          val base = OS.Path.base (OS.Path.file mlbfile)
+          val file = OS.Path.concat ("MLB", base ^ "-rename" ^ Int.toString (!rename_count) ^ ".sml")
+          val dir = OS.Path.dir mlbfile
+          val path = if dir = "" then file else OS.Path.concat (dir, file)
+          val text = kind ^ " " ^ id ^ " = " ^ id' ^ "\n"
+          val unchanged = (MlbFileSys.fromFile path = text) handle _ => false
+          fun write () =
+              let val () = (OS.FileSys.mkDir (OS.Path.dir path)) handle OS.SysErr _ => ()
+                  val os = TextIO.openOut path
+              in TextIO.output (os, text); TextIO.closeOut os
+              end
+      in if unchanged then () else write ();
+         MS.ATBDECbdec file
+      end
+
+  fun parse_exports mlbfile kind ss =
+      let fun more (bdec, ss) =
               case ss of
-                "and" :: ss => parse_exports mlbfile ss
-              | _ => ss
+                "and" :: ss =>
+                let val (bdec', ss) = parse_exports mlbfile kind ss
+                in (MS.SEQbdec (bdec, bdec'), ss)
+                end
+              | _ => (bdec, ss)
       in case ss of
            id :: "=" :: id' :: ss =>
-           if id = id' then more ss
-           else parse_error1 mlbfile ("renaming " ^ id' ^ " to " ^ id ^ " is not supported", ss)
+           if kind <> "functor" then more (rename_file mlbfile (kind, id, id'), ss)
+           else if id = id' then (functor_seen := true; more (MS.EMPTYbdec, ss))
+           else parse_error1 mlbfile ("renaming the functor " ^ id' ^ " to " ^ id ^ " is not supported", ss)
          | id :: ss =>
            if is_keyword id then parse_error1 mlbfile ("missing identifier", id :: ss)
-           else more ss
+           else if kind <> "functor" then more (rename_file mlbfile (kind, id, id), ss)
+           else (functor_seen := true; more (MS.EMPTYbdec, ss))
          | nil => parse_error1 mlbfile ("missing identifier", ss)
+      end
+
+  (* `local imports sources in body end`, for a body that exports a functor:
+   * the mlb-files that the `local` starts with stay hidden, unless it has no
+   * sources, when the functor must come from them. *)
+  fun hide_imports (bdec, body) =
+      let fun flatten (MS.SEQbdec (a, b)) = flatten a @ flatten b
+            | flatten MS.EMPTYbdec = []
+            | flatten b = [b]
+          fun seq bs = foldr (fn (b, MS.EMPTYbdec) => b | (b, r) => MS.SEQbdec (b, r)) MS.EMPTYbdec bs
+          fun split (imports, (b as MS.MLBFILEbdec _) :: bs) = split (b :: imports, bs)
+            | split (imports, bs) = (rev imports, bs)
+          val (imports, sources) = split ([], flatten bdec)
+      in case sources of
+           [] => MS.SEQbdec (bdec, body)
+         | _ => MS.LOCALbdec (seq imports, MS.SEQbdec (seq sources, body))
       end
 
   fun parse_bdec_more mlbfile (bdec,ss) =
@@ -311,20 +348,20 @@ struct
       case ss of
         "local" :: ss =>
         let
-          val outer_exports_seen = !exports_seen
+          val outer_functor_seen = !functor_seen
           fun parse_rest'(bdec,bdec',ss) =
               case ss of
                 "end" :: ss =>
-                let val b = if !exports_seen then MS.SEQbdec(bdec,bdec')
+                let val b = if !functor_seen then hide_imports (bdec,bdec')
                             else MS.LOCALbdec(bdec,bdec')
-                in exports_seen := outer_exports_seen;
+                in functor_seen := outer_functor_seen;
                    parse_bdec_more mlbfile (b,ss)
                 end
               | _ => parse_error1 mlbfile ("I expect an 'end'", ss)
           fun parse_rest(bdec,ss) =
               case ss of
                 "in" :: ss =>
-                (exports_seen := false;
+                (functor_seen := false;
                  case parse_bdec_opt mlbfile ss of
                    NONE => parse_rest'(bdec,MS.EMPTYbdec,ss)
                  | SOME(bdec',ss) => parse_rest'(bdec,bdec',ss))
@@ -381,8 +418,7 @@ struct
         end
       | s :: ss =>
         if s = "structure" orelse s = "signature" orelse s = "functor" then
-          (exports_seen := true;
-           parse_bdec_more mlbfile (MS.EMPTYbdec, parse_exports mlbfile ss))
+          parse_bdec_more mlbfile (parse_exports mlbfile s ss)
         else if is_smlfile s then parse_bdec_more mlbfile (MS.ATBDECbdec (expand mlbfile s),ss)
         else
           if is_mlbfile s then
@@ -403,6 +439,7 @@ struct
         let (* val _ = print ("currently at " ^ OS.FileSys.getDir() ^ "\n") *)
           val mlbcontent = MlbFileSys.fromFile mlbfile
           val mlbhash = MD5.fromString mlbcontent
+          val () = rename_count := 0
           val ss = (lex mlbfile o drop_comments mlbfile o
                     explode) mlbcontent
         (* val _ = print_ss ss *)

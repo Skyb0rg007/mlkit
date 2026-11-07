@@ -628,12 +628,6 @@ structure LambdaExp : LAMBDA_EXP =
                  SOME (i, _) => String.substring (r, 0, i) ^ ".0" ^ String.extract (r, i, NONE)
                | NONE => r ^ ".0"
 
-    (* the instance of an EQUALprim is the type compared or, as EliminateEq
-     * writes it, the pair of them *)
-    fun isBoolType (CONStype([], tn, _)) = TyName.eq (tn, TyName.tyName_BOOL)
-      | isBoolType (RECORDtype([t, _], _)) = isBoolType t
-      | isBoolType _ = false
-
     (* Core ML has no overloading to resolve a bare `abs` with, so Barry writes
      * the function out, at the type it is used at; at real, `a - a` makes
      * either zero positive, as `fabs` does *)
@@ -694,8 +688,6 @@ structure LambdaExp : LAMBDA_EXP =
       | SELECTprim {index=i} => PP.LEAF("select(" ^ Int.toString i ^ ")")
       | UB_RECORDprim => PP.LEAF("ubrecord")
       | DROPprim => PP.LEAF("DROP")
-      | CCALLprim{name="__neg_int31",...} => PP.LEAF("~" )
-      | CCALLprim{name="__neg_int32ub",...} => PP.LEAF("~" )
       | CCALLprim{name="__neg_int63",...} => PP.LEAF("~" )
       | CCALLprim{name="__neg_int64ub",...} => PP.LEAF("~" )
       | CCALLprim{name="__neg_real",...} => PP.LEAF("~" )
@@ -728,20 +720,14 @@ structure LambdaExp : LAMBDA_EXP =
           else PP.LEAF " := "
       | CCALLprim{name="__div_real", ...} => PP.LEAF("/")
       | CCALLprim{name="__mul_real", ...} => PP.LEAF("*")
-      | CCALLprim{name="__mul_int31", ...} => PP.LEAF("*")
-      | CCALLprim{name="__mul_int32", ...} => PP.LEAF("*")
       | CCALLprim{name="__mul_int63", ...} => PP.LEAF("*")
       | CCALLprim{name="__mul_int64", ...} => PP.LEAF("*")
       | CCALLprim{name="__mul_f64", ...} => PP.LEAF("*")
       | CCALLprim{name="__plus_real", ...} => PP.LEAF("+")
-      | CCALLprim{name="__plus_int31", ...} => PP.LEAF("+")
-      | CCALLprim{name="__plus_int32", ...} => PP.LEAF("+")
       | CCALLprim{name="__plus_int63", ...} => PP.LEAF("+")
       | CCALLprim{name="__plus_int64", ...} => PP.LEAF("+")
       | CCALLprim{name="__plus_f64", ...} => PP.LEAF("+")
       | CCALLprim{name="__minus_real", ...} => PP.LEAF("-")
-      | CCALLprim{name="__minus_int31", ...} => PP.LEAF("-")
-      | CCALLprim{name="__minus_int32", ...} => PP.LEAF("-")
       | CCALLprim{name="__minus_int63", ...} => PP.LEAF("-")
       | CCALLprim{name="__minus_int64", ...} => PP.LEAF("-")
       | CCALLprim{name="__minus_f64", ...} => PP.LEAF("-")
@@ -1378,20 +1364,14 @@ structure LambdaExp : LAMBDA_EXP =
          | (ASSIGNprim{instance},_) => layout_infix context 3 " := "lambs
          | (CCALLprim{name="__div_real", ...}, [_,_]) => layout_infix context 7 " / " lambs
          | (CCALLprim{name="__mul_real", ...}, [_,_]) => layout_infix context 7 " * " lambs
-         | (CCALLprim{name="__mul_int31", ...}, [_,_]) =>  layout_infix context 7 " * " lambs
-         | (CCALLprim{name="__mul_int32ub", ...}, [_,_]) =>  layout_infix context 7 " * " lambs
          | (CCALLprim{name="__mul_int63", ...}, [_,_]) =>  layout_infix context 7 " * " lambs
          | (CCALLprim{name="__mul_int64ub", ...}, [_,_]) =>  layout_infix context 7 " * " lambs
          | (CCALLprim{name="__mul_f64", ...}, [_,_]) => layout_infix context 7 " * " lambs
          | (CCALLprim{name="__plus_real", ...}, [_,_]) => layout_infix context 6 " + " lambs
-         | (CCALLprim{name="__plus_int31", ...}, [_,_]) =>  layout_infix context 6 " + " lambs
-         | (CCALLprim{name="__plus_int32ub", ...}, [_,_]) =>  layout_infix context 6 " + " lambs
          | (CCALLprim{name="__plus_int63", ...}, [_,_]) =>  layout_infix context 6 " + " lambs
          | (CCALLprim{name="__plus_int64ub", ...}, [_,_]) =>  layout_infix context 6 " + " lambs
          | (CCALLprim{name="__plus_f64", ...}, [_,_]) => layout_infix context 6 " + " lambs
          | (CCALLprim{name="__minus_real", ...}, [_,_]) => layout_infix context 6 " - " lambs
-         | (CCALLprim{name="__minus_int31", ...}, [_,_]) =>  layout_infix context 6 " - "lambs
-         | (CCALLprim{name="__minus_int32ub", ...}, [_,_]) =>  layout_infix context 6 " - "lambs
          | (CCALLprim{name="__minus_int63", ...}, [_,_]) =>  layout_infix context 6 " - "lambs
          | (CCALLprim{name="__minus_int64ub", ...}, [_,_]) =>  layout_infix context 6 " - "lambs
          | (CCALLprim{name="__minus_f64", ...}, [_,_]) => layout_infix context 6 " - " lambs
@@ -1399,16 +1379,7 @@ structure LambdaExp : LAMBDA_EXP =
          | (CCALLprim{name="divFloat", ...}, [_,_]) =>  layout_infix context 7 " / "lambs
          | (CCALLprim{name="__div_f64", ...}, [_,_]) =>  layout_infix context 7 " / "lambs
 
-         | (EQUALprim{instance},[a,b]) =>
-           (* a Core ML compiler need not compare booleans with `=`, which on a
-            * datatype it may not support, so Barry compares them with `if`, and
-            * without the nested patterns that Barry's output otherwise avoids *)
-           if !barify_p andalso isBoolType instance then
-             PP.NODE{start="(fn (barry_eq_x, barry_eq_y) => if barry_eq_x then barry_eq_y \
-                           \else if barry_eq_y then false else true) (",
-                     finish=")", indent=1, childsep=PP.RIGHT ", ",
-                     children=[layoutLambdaExp(a,0), layoutLambdaExp(b,0)]}
-           else layout_infix context 4 " = "lambs
+         | (EQUALprim _,[_,_]) => layout_infix context 4 " = "lambs
          | (CCALLprim{name="__equal_char", ...}, [_,_]) => layout_infix context 4 " = "lambs
          | (CCALLprim{name="__equal_word8", ...}, [_,_]) => layout_infix context 4 " = "lambs
          | (CCALLprim{name="__equal_word31", ...}, [_,_]) => layout_infix context 4 " = "lambs

@@ -22,6 +22,13 @@ structure EliminateEq : ELIMINATE_EQ =
              desc="Efficient equality function derivations using ptr \n\
                   \equality for unboxed values."}
 
+    val intinf_equal_prim_p =
+        Flags.add_bool_entry
+            {long="intinf_equal_prim", short=NONE, neg=false, item=ref false,
+             menu=["Control", "IntInf equality by a primitive"],
+             desc="Compare IntInf.int values with the primitive IntInf_equal,\n\
+                  \for a basis library that has its own representation of them."}
+
     (* ------------------------------------------------------------
      * The Environment
      * ------------------------------------------------------------ *)
@@ -576,6 +583,22 @@ structure EliminateEq : ELIMINATE_EQ =
         in gen_datatype_eq empty dbss
         end
     and gen_datatype_for_intinf e =
+        if intinf_equal_prim_p () then
+          let val tau = CONStype([],TyName.tyName_INTINF,NONE)
+              val tau_pair = RECORDtype ([tau,tau],NONE)
+              val lvar_eq = Lvars.new_named_lvar "eq_intinf"
+              val lvar_pair = Lvars.new_named_lvar "intinf_pair"
+              val eq = CCALLprim {name = "IntInf_equal", instances = [], regvars = [], tyvars = [],
+                                  Type = ARROWtype ([tau_pair], NONE, [boolType], NONE)}
+              val function = {lvar = lvar_eq, regvars = [], tyvars = [],
+                              Type = ARROWtype ([tau_pair], NONE, [boolType], NONE),
+                              constrs = [],
+                              bind = FN {pat = [(lvar_pair, tau_pair)],
+                                         body = PRIM (eq, [lamb_var lvar_pair])}}
+          in (fn scope => FIX {functions = [function], scope = scope},
+              add_tyname (TyName.tyName_INTINF, POLYLVAR lvar_eq, empty))
+          end
+        else
         let val int31 = CONStype([],TyName.tyName_INT31,NONE)
             val int31list = CONStype([int31],TyName.tyName_LIST,NONE)
             val bool = CONStype([],TyName.tyName_BOOL,NONE)

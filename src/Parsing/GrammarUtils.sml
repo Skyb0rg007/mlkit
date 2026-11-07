@@ -330,7 +330,7 @@ structure GrammarUtils : GRAMMAR_UTILS =
 			   "GrammarUtils.rewriteDatBind< insert error info into i >"
                        else ()
                    in
-                     replaceTy tyvarseq1 tyseq' ty1
+                     replaceTy tyvarseq1 (map rewriteTy tyseq') ty1
                    end)
                      handle Lookup_tycon =>
                      (* keep type constructor, but traverse its
