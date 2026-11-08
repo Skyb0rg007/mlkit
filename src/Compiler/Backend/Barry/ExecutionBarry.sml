@@ -150,7 +150,17 @@ structure ExecutionBarry : EXECUTION =
 
     val be_rigid = true
 
-    fun mlbdir () = "MLB" ## "Barry"
+    (* Barry's output depends on its options and on Barry itself, which the
+     * cache in MLB/Barry does not record, so a caller can name its own *)
+    val mlb_subdir =
+        Flags.add_string_entry
+            {long="mlb-subdir", short=NONE, item=ref "",
+             menu=["General Control", "Use MLB subdir-postfix"],
+             desc="Keep what Barry compiles in MLB/Barry-S rather than\n\
+                  \MLB/Barry, so that a cache written by another build\n\
+                  \of Barry, or with other options, is not reused."}
+
+    fun mlbdir () = "MLB" ## (case mlb_subdir () of "" => "Barry" | s => "Barry-" ^ s)
 
     val pu_linkinfo =
 	Pickle.convert (fn b => {unsafe=b},

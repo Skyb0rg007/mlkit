@@ -1628,7 +1628,10 @@ structure LambdaExp : LAMBDA_EXP =
                   let fun formals {bind = FN{pat, ...}, ...} = map #2 pat
                         | formals _ = nil
                       val mentioned = List.concat (map tyvars (List.concat (map formals functions)))
-                      val bound = List.concat (map #tyvars functions)
+                      (* the functions of a group share their type variables *)
+                      fun dedup (tv :: tvs) = tv :: dedup (List.filter (fn tv' => tv <> tv') tvs)
+                        | dedup nil = nil
+                      val bound = dedup (List.concat (map #tyvars functions))
                       val tvs = List.filter (fn tv => not (List.exists (fn tv' => tv = tv') mentioned)) bound
                   in case tvs of
                          nil => ""

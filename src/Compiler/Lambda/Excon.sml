@@ -19,11 +19,14 @@ structure Excon :> EXCON where type name = Name.name =
 
     fun mk_excon (s: string) : excon = {str=s,name=Name.new()}
 
-    fun pr_excon' ({str,name}: excon) : string =  (* for Barry and debugging *)
+    (* For Barry and debugging.  The last _ that a digit follows ends the
+     * source name, so that the program can recover it for exnName. *)
+    fun pr_excon' ({str,name}: excon) : string =
 	let val (i,s) = Name.key name
             val s = if Name.baseGet() = s then "" else s
 	    val str = if str = "" then "e:" else str ^ ":"
-	in str ^ Int.toString i ^ ":" ^ s
+            val key = String.translate (fn #"_" => "" | #"'" => "" | c => String.str c)
+	in str ^ "_" ^ key (Int.toString i ^ s)
 	end
 
     fun pr_excon ({str,name}: excon) : string =
